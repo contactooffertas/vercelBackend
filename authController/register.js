@@ -1,6 +1,6 @@
 // authController/register.js
 const bcrypt    = require('bcryptjs');
-const jwt       = require('jsonwebtoken');
+const t       = require('jsonwebtoken');
 const User      = require('../models/userModel');
 const sendEmail = require('../utils/sendMail');
 
@@ -180,7 +180,7 @@ exports.register = async (req, res) => {
       terminosAceptadosAt:     new Date(),
     });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user._id }, 'adfssdfasdfasdfasdfasdfasdfasdfkklilejp613213213135131351313132131321', { expiresIn: '7d' });
 
     // ✅ await — Vercel no mata la función antes de que termine
     try {
