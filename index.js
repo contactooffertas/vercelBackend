@@ -33,6 +33,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+
 // NOTA: Vercel no soporta archivos estáticos persistentes en /uploads.
 // Si usas subida de imágenes, migra a un servicio externo (S3, Cloudinary, etc.).
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -68,4 +69,5 @@ if (require.main === module) {
     console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
   });
 }
+
 
