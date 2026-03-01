@@ -39,7 +39,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Servidor de Offertas conectado (Vercel)' });
+  res.status(200).json({ status: 'ok', message: 'Deploy hecho Offertas conectado (Vercel)' });
 });
 
 // ── Rutas de la API ───────────────────────────────────────────────────────────
@@ -68,3 +68,4 @@ if (require.main === module) {
     console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
   });
 }
+
