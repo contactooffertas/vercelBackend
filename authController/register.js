@@ -1,8 +1,18 @@
-// authController/register.js
 const bcrypt    = require('bcryptjs');
 const jwt       = require('jsonwebtoken');
 const User      = require('../models/userModel');
-const sendEmail = require('../utils/sendMail');
+const nodemailer = require('nodemailer');
+
+// ── Transporter ────────────────────────────────────────────────────────────────
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
+  auth: {
+    user: "contacto.offertas@gmail.com",
+    pass: "dikd rskl kdcq qkpy",
+  },
+});
 
 // ── HTML templates ─────────────────────────────────────────────────────────────
 function verificationEmailHTML(code, name) {
@@ -212,7 +222,6 @@ exports.register = async (req, res) => {
   try {
     const { name, email, password, role, terminosAceptados } = req.body;
 
-    // ── Guardia: T&C obligatorios ──────────────────────────────────────────
     if (!terminosAceptados) {
       return res.status(400).json({
         message: 'Debés aceptar los Términos y Condiciones para registrarte.',
@@ -233,20 +242,24 @@ exports.register = async (req, res) => {
       role,
       verificationCode:        code,
       verificationCodeExpires: expires,
-      // ✅ Se guardan en la base de datos
       terminosAceptados:       true,
       terminosAceptadosAt:     new Date(),
     });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    // Email en background — no bloquea la respuesta
-    sendEmail(
-      email,
-      '🔐 Código de verificación — Offerton',
-      `Tu código de verificación es: ${code}. Válido por 10 minutos.`,
-      verificationEmailHTML(code, name)
-    ).catch(err => console.error('Error enviando email de verificación:', err));
+    try {
+      await transporter.sendMail({
+        from:    '"Offerton" <contacto.offertas@gmail.com>',
+        to:      email,
+        subject: '🔐 Código de verificación — Offerton',
+        text:    `Tu código de verificación es: ${code}. Válido por 10 minutos.`,
+        html:    verificationEmailHTML(code, name),
+      });
+      console.log('✅ Email de verificación enviado a:', email);
+    } catch (emailErr) {
+      console.error('❌ Error enviando email de verificación:', emailErr.message);
+    }
 
     res.status(201).json({
       message: 'Usuario registrado. Verificá tu email.',
@@ -292,7 +305,7 @@ exports.resendVerificationCode = async (req, res) => {
     const { email } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user)          return res.status(400).json({ message: 'Usuario no encontrado' });
+    if (!user)           return res.status(400).json({ message: 'Usuario no encontrado' });
     if (user.isVerified) return res.status(400).json({ message: 'Usuario ya verificado' });
 
     const newCode    = Math.floor(100000 + Math.random() * 900000).toString();
@@ -302,12 +315,18 @@ exports.resendVerificationCode = async (req, res) => {
     user.verificationCodeExpires = newExpires;
     await user.save();
 
-    sendEmail(
-      email,
-      '🔄 Nuevo código de verificación — Offerton',
-      `Tu nuevo código es: ${newCode}. Válido por 10 minutos.`,
-      resendEmailHTML(newCode, user.name)
-    ).catch(err => console.error('Error reenviando código:', err));
+    try {
+      await transporter.sendMail({
+        from:    '"Offerton" <contacto.offertas@gmail.com>',
+        to:      email,
+        subject: '🔄 Nuevo código de verificación — Offerton',
+        text:    `Tu nuevo código es: ${newCode}. Válido por 10 minutos.`,
+        html:    resendEmailHTML(newCode, user.name),
+      });
+      console.log('✅ Código reenviado a:', email);
+    } catch (emailErr) {
+      console.error('❌ Error reenviando código:', emailErr.message);
+    }
 
     res.json({ message: 'Nuevo código enviado correctamente' });
 
@@ -335,12 +354,18 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordCodeExpires = expires;
     await user.save();
 
-    sendEmail(
-      email,
-      '🔑 Recuperar contraseña — Offerton',
-      `Tu código para restablecer la contraseña es: ${code}. Válido por 15 minutos.`,
-      forgotPasswordHTML(code, user.name)
-    ).catch(err => console.error('Error enviando email de recuperación:', err));
+    try {
+      await transporter.sendMail({
+        from:    '"Offerton" <contacto.offertas@gmail.com>',
+        to:      email,
+        subject: '🔑 Recuperar contraseña — Offerton',
+        text:    `Tu código para restablecer la contraseña es: ${code}. Válido por 15 minutos.`,
+        html:    forgotPasswordHTML(code, user.name),
+      });
+      console.log('✅ Email de recuperación enviado a:', email);
+    } catch (emailErr) {
+      console.error('❌ Error enviando email de recuperación:', emailErr.message);
+    }
 
     res.json({ message: 'Si el email existe, recibirás un código en breve.' });
 
@@ -376,12 +401,18 @@ exports.resetPassword = async (req, res) => {
     user.resetPasswordCodeExpires = null;
     await user.save();
 
-    sendEmail(
-      email,
-      '✅ Contraseña actualizada — Offerton',
-      'Tu contraseña fue actualizada correctamente.',
-      passwordChangedHTML(user.name)
-    ).catch(err => console.error('Error enviando confirmación:', err));
+    try {
+      await transporter.sendMail({
+        from:    '"Offerton" <contacto.offertas@gmail.com>',
+        to:      email,
+        subject: '✅ Contraseña actualizada — Offerton',
+        text:    'Tu contraseña fue actualizada correctamente.',
+        html:    passwordChangedHTML(user.name),
+      });
+      console.log('✅ Email de confirmación enviado a:', email);
+    } catch (emailErr) {
+      console.error('❌ Error enviando confirmación:', emailErr.message);
+    }
 
     res.json({ message: 'Contraseña actualizada correctamente' });
 
@@ -389,5 +420,4 @@ exports.resetPassword = async (req, res) => {
     console.error('resetPassword error:', err);
     res.status(500).json({ message: 'Error del servidor' });
   }
-
 };
