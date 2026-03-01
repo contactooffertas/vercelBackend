@@ -20,20 +20,22 @@ const terminosRoutes       = require('./routes/terminosRoute');
 const eliminaUsuarioRoutes = require('./routes/eliminarUsuarioRoute');
 const { router: pushRoutes } = require('./routes/pushRoute');
 
-// ─────────────────────────────────────────────────────────────────────────────
 const app = express();
 connectDB();
 
-// ── Middlewares globales ──────────────────────────────────────────────────────
-app.use(cors({
-  origin:     'https://ofertas-lime-ten.vercel.app',
+// ── CORS ──────────────────────────────────────────────────────────────────────
+const corsOptions = {
+  origin: 'https://ofertas-lime-ten.vercel.app',
   credentials: true,
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// NOTA: Vercel no soporta archivos estáticos persistentes en /uploads.
-// Si usas subida de imágenes, migra a un servicio externo (S3, Cloudinary, etc.).
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── Health check ──────────────────────────────────────────────────────────────
@@ -56,15 +58,12 @@ app.use('/api/announcements',   announcementRoutes);
 app.use('/api/terminos',        terminosRoutes);
 app.use('/api/elimina-usuario', eliminaUsuarioRoutes);
 
-// ── Exportar app para Vercel (serverless) ─────────────────────────────────────
-// En Vercel NO se llama a app.listen(); el runtime lo maneja automáticamente.
+// ── Exportar app para Vercel ──────────────────────────────────────────────────
 module.exports = app;
 
-// ── Arranque local (npm run dev / node server.js) ─────────────────────────────
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
   });
 }
-
