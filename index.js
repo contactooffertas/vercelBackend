@@ -25,7 +25,7 @@ connectDB();
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const corsOptions = {
-  origin: 'https://ofertas-lime-ten.vercel.app',
+  origin: 'https://ofertas-lime-ten.vercel.app','http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -67,3 +67,4 @@ if (require.main === module) {
     console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
   });
 }
+
