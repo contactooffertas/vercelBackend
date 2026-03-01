@@ -21,23 +21,6 @@ router.post('/reset-password',   resetPassword);
 router.put('/update', authMiddleware, userController.updateProfile);
 
 
-
-
-// Ruta temporal de diagnóstico — BORRALA después de confirmar que funciona
-router.get('/test-email', async (req, res) => {
-  const sendEmail = require('../utils/sendMail');
-  try {
-    await sendEmail(
-      'contacto.offertas@gmail.com', // mandarte a vos mismo
-      '🧪 Test email Offerton',
-      'Si ves esto, el email funciona.',
-      '<h1>✅ Email funcionando correctamente</h1>'
-    );
-    res.json({ ok: true, message: 'Email enviado correctamente' });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message, stack: err.stack });
-  }
-});
-
 module.exports = router;
+
 
