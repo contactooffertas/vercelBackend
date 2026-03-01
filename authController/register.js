@@ -4,52 +4,37 @@ const jwt       = require('jsonwebtoken');
 const User      = require('../models/userModel');
 const sendEmail = require('../utils/sendMail');
 
-// ── HTML templates ─────────────────────────────────────────────────────────────
+// ── HTML templates ────────────────────────────────────────────────────────────
+
 function verificationEmailHTML(code, name) {
-  return `
-  <!DOCTYPE html>
+  return `<!DOCTYPE html>
   <html lang="es">
-  <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Verificá tu cuenta</title>
-  </head>
+  <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Verificá tu cuenta</title></head>
   <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0;">
       <tr><td align="center">
-        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
-          <tr>
-            <td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:36px 40px;text-align:center;">
-              <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;letter-spacing:-0.5px;">
-                Off<span style="color:#fed7aa;">erton</span>
-              </h1>
-              <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:40px 40px 32px;">
-              <h2 style="margin:0 0 12px;color:#111827;font-size:22px;font-weight:700;">¡Hola, ${name}! 👋</h2>
-              <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
-                Gracias por registrarte en Offerton. Para activar tu cuenta, ingresá el siguiente código:
-              </p>
-              <div style="background:#fff7ed;border:2px dashed #f97316;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
-                <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Código de verificación</p>
-                <span style="font-size:42px;font-weight:900;color:#f97316;letter-spacing:10px;font-family:'Courier New',monospace;">${code}</span>
-                <p style="margin:12px 0 0;color:#9ca3af;font-size:12px;">⏱️ Válido por <strong>10 minutos</strong></p>
-              </div>
-              <p style="margin:0 0 8px;color:#6b7280;font-size:14px;line-height:1.6;">
-                Si no creaste esta cuenta, podés ignorar este email con total seguridad.
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-              <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">
-                © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.<br/>
-                Este es un email automático, por favor no respondas.
-              </p>
-            </td>
-          </tr>
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
+          <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:36px 40px;text-align:center;">
+            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Off<span style="color:#fed7aa;">erton</span></h1>
+            <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
+          </td></tr>
+          <tr><td style="padding:40px 40px 32px;">
+            <h2 style="margin:0 0 12px;color:#111827;font-size:22px;font-weight:700;">¡Hola, ${name}! 👋</h2>
+            <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
+              Gracias por registrarte en Offerton. Para activar tu cuenta, ingresá el siguiente código:
+            </p>
+            <div style="background:#fff7ed;border:2px dashed #f97316;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
+              <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Código de verificación</p>
+              <span style="font-size:42px;font-weight:900;color:#f97316;letter-spacing:10px;font-family:'Courier New',monospace;">${code}</span>
+              <p style="margin:12px 0 0;color:#9ca3af;font-size:12px;">⏱️ Válido por <strong>10 minutos</strong></p>
+            </div>
+            <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">Si no creaste esta cuenta, podés ignorar este email.</p>
+          </td></tr>
+          <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
+            <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">
+              © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.<br/>Este es un email automático, por favor no respondas.
+            </p>
+          </td></tr>
         </table>
       </td></tr>
     </table>
@@ -58,48 +43,34 @@ function verificationEmailHTML(code, name) {
 }
 
 function resendEmailHTML(code, name) {
-  return `
-  <!DOCTYPE html>
+  return `<!DOCTYPE html>
   <html lang="es">
-  <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Nuevo código de verificación</title>
-  </head>
+  <head><meta charset="UTF-8"/><title>Nuevo código</title></head>
   <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0;">
       <tr><td align="center">
-        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
-          <tr>
-            <td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:36px 40px;text-align:center;">
-              <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;letter-spacing:-0.5px;">
-                Off<span style="color:#fed7aa;">erton</span>
-              </h1>
-              <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:40px 40px 32px;">
-              <h2 style="margin:0 0 12px;color:#111827;font-size:22px;font-weight:700;">Nuevo código solicitado 🔄</h2>
-              <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
-                Hola <strong>${name}</strong>, aquí está tu nuevo código de verificación:
-              </p>
-              <div style="background:#fff7ed;border:2px dashed #f97316;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
-                <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Tu nuevo código</p>
-                <span style="font-size:42px;font-weight:900;color:#f97316;letter-spacing:10px;font-family:'Courier New',monospace;">${code}</span>
-                <p style="margin:12px 0 0;color:#9ca3af;font-size:12px;">⏱️ Válido por <strong>10 minutos</strong></p>
-              </div>
-              <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">Si no solicitaste este código, ignorá este mensaje.</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-              <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">
-                © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.<br/>
-                Este es un email automático, por favor no respondas.
-              </p>
-            </td>
-          </tr>
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
+          <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:36px 40px;text-align:center;">
+            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Off<span style="color:#fed7aa;">erton</span></h1>
+            <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
+          </td></tr>
+          <tr><td style="padding:40px 40px 32px;">
+            <h2 style="margin:0 0 12px;color:#111827;font-size:22px;font-weight:700;">Nuevo código solicitado 🔄</h2>
+            <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
+              Hola <strong>${name}</strong>, aquí está tu nuevo código de verificación:
+            </p>
+            <div style="background:#fff7ed;border:2px dashed #f97316;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
+              <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Tu nuevo código</p>
+              <span style="font-size:42px;font-weight:900;color:#f97316;letter-spacing:10px;font-family:'Courier New',monospace;">${code}</span>
+              <p style="margin:12px 0 0;color:#9ca3af;font-size:12px;">⏱️ Válido por <strong>10 minutos</strong></p>
+            </div>
+            <p style="margin:0;color:#6b7280;font-size:14px;">Si no solicitaste este código, ignorá este mensaje.</p>
+          </td></tr>
+          <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
+            <p style="margin:0;color:#9ca3af;font-size:12px;">
+              © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.<br/>Este es un email automático, por favor no respondas.
+            </p>
+          </td></tr>
         </table>
       </td></tr>
     </table>
@@ -108,52 +79,38 @@ function resendEmailHTML(code, name) {
 }
 
 function forgotPasswordHTML(code, name) {
-  return `
-  <!DOCTYPE html>
+  return `<!DOCTYPE html>
   <html lang="es">
-  <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Recuperar contraseña</title>
-  </head>
+  <head><meta charset="UTF-8"/><title>Recuperar contraseña</title></head>
   <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0;">
       <tr><td align="center">
-        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
-          <tr>
-            <td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:36px 40px;text-align:center;">
-              <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;letter-spacing:-0.5px;">
-                Off<span style="color:#fed7aa;">erton</span>
-              </h1>
-              <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:40px 40px 32px;">
-              <h2 style="margin:0 0 12px;color:#111827;font-size:22px;font-weight:700;">Recuperar contraseña 🔑</h2>
-              <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
-                Hola <strong>${name}</strong>, recibimos una solicitud para restablecer tu contraseña:
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
+          <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:36px 40px;text-align:center;">
+            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Off<span style="color:#fed7aa;">erton</span></h1>
+            <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
+          </td></tr>
+          <tr><td style="padding:40px 40px 32px;">
+            <h2 style="margin:0 0 12px;color:#111827;font-size:22px;font-weight:700;">Recuperar contraseña 🔑</h2>
+            <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
+              Hola <strong>${name}</strong>, recibimos una solicitud para restablecer tu contraseña:
+            </p>
+            <div style="background:#fff7ed;border:2px dashed #f97316;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
+              <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Código de recuperación</p>
+              <span style="font-size:42px;font-weight:900;color:#f97316;letter-spacing:10px;font-family:'Courier New',monospace;">${code}</span>
+              <p style="margin:12px 0 0;color:#9ca3af;font-size:12px;">⏱️ Válido por <strong>15 minutos</strong></p>
+            </div>
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px 20px;">
+              <p style="margin:0;color:#dc2626;font-size:13px;line-height:1.5;">
+                🔒 <strong>Si no fuiste vos</strong>, ignorá este email. Tu contraseña no cambiará.
               </p>
-              <div style="background:#fff7ed;border:2px dashed #f97316;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
-                <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Código de recuperación</p>
-                <span style="font-size:42px;font-weight:900;color:#f97316;letter-spacing:10px;font-family:'Courier New',monospace;">${code}</span>
-                <p style="margin:12px 0 0;color:#9ca3af;font-size:12px;">⏱️ Válido por <strong>15 minutos</strong></p>
-              </div>
-              <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px 20px;">
-                <p style="margin:0;color:#dc2626;font-size:13px;line-height:1.5;">
-                  🔒 <strong>Si no fuiste vos</strong>, ignorá este email. Tu contraseña no cambiará a menos que ingreses este código.
-                </p>
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-              <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">
-                © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.<br/>
-                Este es un email automático, por favor no respondas.
-              </p>
-            </td>
-          </tr>
+            </div>
+          </td></tr>
+          <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
+            <p style="margin:0;color:#9ca3af;font-size:12px;">
+              © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.<br/>Este es un email automático, por favor no respondas.
+            </p>
+          </td></tr>
         </table>
       </td></tr>
     </table>
@@ -162,44 +119,33 @@ function forgotPasswordHTML(code, name) {
 }
 
 function passwordChangedHTML(name) {
-  return `
-  <!DOCTYPE html>
+  return `<!DOCTYPE html>
   <html lang="es">
-  <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Contraseña actualizada</title>
-  </head>
+  <head><meta charset="UTF-8"/><title>Contraseña actualizada</title></head>
   <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0;">
       <tr><td align="center">
-        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
-          <tr>
-            <td style="background:linear-gradient(135deg,#16a34a,#15803d);padding:36px 40px;text-align:center;">
-              <div style="font-size:48px;margin-bottom:12px;">✅</div>
-              <h1 style="margin:0;color:#fff;font-size:24px;font-weight:900;">¡Contraseña actualizada!</h1>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:40px 40px 32px;">
-              <p style="margin:0 0 16px;color:#111827;font-size:16px;font-weight:600;">Hola ${name},</p>
-              <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
-                Tu contraseña fue actualizada exitosamente. Ya podés iniciar sesión con tu nueva contraseña.
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
+          <tr><td style="background:linear-gradient(135deg,#16a34a,#15803d);padding:36px 40px;text-align:center;">
+            <div style="font-size:48px;margin-bottom:12px;">✅</div>
+            <h1 style="margin:0;color:#fff;font-size:24px;font-weight:900;">¡Contraseña actualizada!</h1>
+          </td></tr>
+          <tr><td style="padding:40px 40px 32px;">
+            <p style="margin:0 0 16px;color:#111827;font-size:16px;font-weight:600;">Hola ${name},</p>
+            <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
+              Tu contraseña fue actualizada exitosamente. Ya podés iniciar sesión con tu nueva contraseña.
+            </p>
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px 20px;">
+              <p style="margin:0;color:#166534;font-size:13px;line-height:1.5;">
+                🔒 Si no realizaste este cambio, contactanos de inmediato.
               </p>
-              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px 20px;">
-                <p style="margin:0;color:#166534;font-size:13px;line-height:1.5;">
-                  🔒 Si no realizaste este cambio, contactanos de inmediato.
-                </p>
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-              <p style="margin:0;color:#9ca3af;font-size:12px;">
-                © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.
-              </p>
-            </td>
-          </tr>
+            </div>
+          </td></tr>
+          <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
+            <p style="margin:0;color:#9ca3af;font-size:12px;">
+              © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.
+            </p>
+          </td></tr>
         </table>
       </td></tr>
     </table>
@@ -207,16 +153,13 @@ function passwordChangedHTML(name) {
   </html>`;
 }
 
-// ── REGISTER ───────────────────────────────────────────────────────────────────
+// ── REGISTER ──────────────────────────────────────────────────────────────────
 exports.register = async (req, res) => {
   try {
     const { name, email, password, role, terminosAceptados } = req.body;
 
-    // ── Guardia: T&C obligatorios ──────────────────────────────────────────
     if (!terminosAceptados) {
-      return res.status(400).json({
-        message: 'Debés aceptar los Términos y Condiciones para registrarte.',
-      });
+      return res.status(400).json({ message: 'Debés aceptar los Términos y Condiciones para registrarte.' });
     }
 
     const exists = await User.findOne({ email });
@@ -233,20 +176,23 @@ exports.register = async (req, res) => {
       role,
       verificationCode:        code,
       verificationCodeExpires: expires,
-      // ✅ Se guardan en la base de datos
       terminosAceptados:       true,
       terminosAceptadosAt:     new Date(),
     });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    // Email en background — no bloquea la respuesta
-    sendEmail(
-      email,
-      '🔐 Código de verificación — Off-ertas',
-      `Tu código de verificación es: ${code}. Válido por 10 minutos.`,
-      verificationEmailHTML(code, name)
-    ).catch(err => console.error('Error enviando email de verificación:', err));
+    // ✅ await — Vercel no mata la función antes de que termine
+    try {
+      await sendEmail(
+        email,
+        '🔐 Código de verificación — Offerton',
+        `Tu código de verificación es: ${code}. Válido por 10 minutos.`,
+        verificationEmailHTML(code, name)
+      );
+    } catch (emailErr) {
+      console.error('❌ Error enviando email de verificación:', emailErr.message);
+    }
 
     res.status(201).json({
       message: 'Usuario registrado. Verificá tu email.',
@@ -255,19 +201,19 @@ exports.register = async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
+    console.error('❌ ERROR en register:', err.message);
     res.status(500).json({ message: 'Error servidor' });
   }
 };
 
-// ── VERIFY ─────────────────────────────────────────────────────────────────────
+// ── VERIFY ────────────────────────────────────────────────────────────────────
 exports.verifyUser = async (req, res) => {
   try {
     const { email, code } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user)           return res.status(400).json({ message: 'Usuario no encontrado' });
-    if (user.isVerified) return res.status(400).json({ message: 'Usuario ya verificado' });
+    if (!user)            return res.status(400).json({ message: 'Usuario no encontrado' });
+    if (user.isVerified)  return res.status(400).json({ message: 'Usuario ya verificado' });
 
     if (user.verificationCode !== code || user.verificationCodeExpires < Date.now()) {
       return res.status(400).json({ message: 'Código inválido o expirado' });
@@ -281,18 +227,18 @@ exports.verifyUser = async (req, res) => {
     res.json({ message: 'Cuenta verificada correctamente' });
 
   } catch (err) {
-    console.error(err);
+    console.error('❌ ERROR en verifyUser:', err.message);
     res.status(500).json({ message: 'Error servidor' });
   }
 };
 
-// ── RESEND CODE ────────────────────────────────────────────────────────────────
+// ── RESEND CODE ───────────────────────────────────────────────────────────────
 exports.resendVerificationCode = async (req, res) => {
   try {
     const { email } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user)          return res.status(400).json({ message: 'Usuario no encontrado' });
+    if (!user)           return res.status(400).json({ message: 'Usuario no encontrado' });
     if (user.isVerified) return res.status(400).json({ message: 'Usuario ya verificado' });
 
     const newCode    = Math.floor(100000 + Math.random() * 900000).toString();
@@ -302,31 +248,34 @@ exports.resendVerificationCode = async (req, res) => {
     user.verificationCodeExpires = newExpires;
     await user.save();
 
-    sendEmail(
-      email,
-      '🔄 Nuevo código de verificación — Offerton',
-      `Tu nuevo código es: ${newCode}. Válido por 10 minutos.`,
-      resendEmailHTML(newCode, user.name)
-    ).catch(err => console.error('Error reenviando código:', err));
+    // ✅ await
+    try {
+      await sendEmail(
+        email,
+        '🔄 Nuevo código de verificación — Offerton',
+        `Tu nuevo código es: ${newCode}. Válido por 10 minutos.`,
+        resendEmailHTML(newCode, user.name)
+      );
+    } catch (emailErr) {
+      console.error('❌ Error reenviando código:', emailErr.message);
+    }
 
     res.json({ message: 'Nuevo código enviado correctamente' });
 
   } catch (err) {
-    console.error(err);
+    console.error('❌ ERROR en resendVerificationCode:', err.message);
     res.status(500).json({ message: 'Error servidor' });
   }
 };
 
-// ── FORGOT PASSWORD ────────────────────────────────────────────────────────────
+// ── FORGOT PASSWORD ───────────────────────────────────────────────────────────
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'El email es requerido' });
 
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.json({ message: 'Si el email existe, recibirás un código en breve.' });
-    }
+    if (!user) return res.json({ message: 'Si el email existe, recibirás un código en breve.' });
 
     const code    = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = Date.now() + 15 * 60 * 1000;
@@ -335,22 +284,27 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordCodeExpires = expires;
     await user.save();
 
-    sendEmail(
-      email,
-      '🔑 Recuperar contraseña — Offerton',
-      `Tu código para restablecer la contraseña es: ${code}. Válido por 15 minutos.`,
-      forgotPasswordHTML(code, user.name)
-    ).catch(err => console.error('Error enviando email de recuperación:', err));
+    // ✅ await
+    try {
+      await sendEmail(
+        email,
+        '🔑 Recuperar contraseña — Offerton',
+        `Tu código para restablecer la contraseña es: ${code}. Válido por 15 minutos.`,
+        forgotPasswordHTML(code, user.name)
+      );
+    } catch (emailErr) {
+      console.error('❌ Error enviando email de recuperación:', emailErr.message);
+    }
 
     res.json({ message: 'Si el email existe, recibirás un código en breve.' });
 
   } catch (err) {
-    console.error('forgotPassword error:', err);
+    console.error('❌ ERROR en forgotPassword:', err.message);
     res.status(500).json({ message: 'Error del servidor' });
   }
 };
 
-// ── RESET PASSWORD ─────────────────────────────────────────────────────────────
+// ── RESET PASSWORD ────────────────────────────────────────────────────────────
 exports.resetPassword = async (req, res) => {
   try {
     const { email, code, newPassword } = req.body;
@@ -376,17 +330,22 @@ exports.resetPassword = async (req, res) => {
     user.resetPasswordCodeExpires = null;
     await user.save();
 
-    sendEmail(
-      email,
-      '✅ Contraseña actualizada — Offerton',
-      'Tu contraseña fue actualizada correctamente.',
-      passwordChangedHTML(user.name)
-    ).catch(err => console.error('Error enviando confirmación:', err));
+    // ✅ await
+    try {
+      await sendEmail(
+        email,
+        '✅ Contraseña actualizada — Offerton',
+        'Tu contraseña fue actualizada correctamente.',
+        passwordChangedHTML(user.name)
+      );
+    } catch (emailErr) {
+      console.error('❌ Error enviando confirmación de contraseña:', emailErr.message);
+    }
 
     res.json({ message: 'Contraseña actualizada correctamente' });
 
   } catch (err) {
-    console.error('resetPassword error:', err);
+    console.error('❌ ERROR en resetPassword:', err.message);
     res.status(500).json({ message: 'Error del servidor' });
   }
 };
