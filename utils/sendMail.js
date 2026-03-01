@@ -1,14 +1,14 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  host: "smtp-relay.brevo.com",
-  port: 587,
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
   auth: {
-    user:"a3acea001@smtp-brevo.com",
-    pass: "6tN0BnSAkdxP2H94",
+    user: "contacto.offertas@gmail.com",
+    pass: "dikd rskl kdcq qkpy",
   },
 });
-
 
 const sendEmail = async (to, subject, text, html) => {
   try {
@@ -19,11 +19,12 @@ const sendEmail = async (to, subject, text, html) => {
       text,
       html: html || text,
     });
+    console.log("✅ Email enviado:", info.messageId);
     return info;
   } catch (err) {
+    console.error("❌ Error enviando email:", err);
     throw err;
   }
 };
 
 module.exports = sendEmail;
-
