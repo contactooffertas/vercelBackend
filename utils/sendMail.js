@@ -1,33 +1,28 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  host: "smtp-relay.brevo.com",
+  port: 587,
   auth: {
-    user: "contacto.offertas@gmail.com",
-    pass: "dikd rskl kdcq qkpy",
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
-});;
+});
+
 
 const sendEmail = async (to, subject, text, html) => {
   try {
-    await transporter.sendMail({
-      from: `"Offertas"- GRACIAS POR ESTAR`,
-      to,
+    const info = await transporter.sendMail({
+      from: '"Offertas" <contacto.offertas@gmail.com>',
+      to: Array.isArray(to) ? to.join(",") : to,
       subject,
       text,
       html: html || text,
     });
+    return info;
   } catch (err) {
-    console.error('❌ Error enviando email:', err);
     throw err;
   }
 };
 
-
 module.exports = sendEmail;
-
-
-
-
