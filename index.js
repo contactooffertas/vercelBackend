@@ -1,4 +1,5 @@
-// server.js – versión Vercel + Localhost
+
+// server.js  –  versión Vercel (sin Socket.IO)
 require('dotenv').config();
 const express   = require('express');
 const cors      = require('cors');
@@ -24,46 +25,21 @@ const { router: pushRoutes } = require('./routes/pushRoute');
 const app = express();
 connectDB();
 
-// ── CONFIGURACIÓN CORS PROFESIONAL ──────────────────────────────────────────
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'https://ofertas-lime-ten.vercel.app',
-];
-
+// ── Middlewares globales ──────────────────────────────────────────────────────
 app.use(cors({
-  origin: function (origin, callback) {
-
-    // Permitir requests sin origin (Postman, mobile, server-to-server)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin:  'https://ofertas-lime-ten.vercel.app',
   credentials: true,
-  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization'],
 }));
-
-// Manejo explícito del preflight (IMPORTANTE en serverless)
-app.options('*', cors());
-
-// ── Middlewares globales ─────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ── Archivos estáticos (solo para local, en Vercel no persiste) ─────────────
+// NOTA: Vercel no soporta archivos estáticos persistentes en /uploads.
+// Si usas subida de imágenes, migra a un servicio externo (S3, Cloudinary, etc.).
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    message: 'Servidor de Offertas conectado (Vercel)'
-  });
+  res.status(200).json({ status: 'ok', message: 'Servidor de Offertas conectado (Vercel)' });
 });
 
 // ── Rutas de la API ───────────────────────────────────────────────────────────
@@ -81,10 +57,11 @@ app.use('/api/announcements',   announcementRoutes);
 app.use('/api/terminos',        terminosRoutes);
 app.use('/api/elimina-usuario', eliminaUsuarioRoutes);
 
-// ── Exportar para Vercel (Serverless) ─────────────────────────────────────────
+// ── Exportar app para Vercel (serverless) ─────────────────────────────────────
+// En Vercel NO se llama a app.listen(); el runtime lo maneja automáticamente.
 module.exports = app;
 
-// ── Arranque local ────────────────────────────────────────────────────────────
+// ── Arranque local (npm run dev / node server.js) ─────────────────────────────
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
