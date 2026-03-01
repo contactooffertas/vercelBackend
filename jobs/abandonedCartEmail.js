@@ -13,8 +13,8 @@ const transporter = nodemailer.createTransport({
   port:   "587",
   secure: false,
   auth: {
-    user: "gjoaquinreynoso@.gmail.com",
-    pass: "onxu lhhe epmh ujzg",
+    user: "contacto.offertas@gmail.com",
+    pass: "jwye whmg dadd jdgl",
   },
 });
 
@@ -144,7 +144,7 @@ async function checkAbandonedCarts() {
 
       try {
         await transporter.sendMail({
-          from:    `"Offertas" <gjoaquinreynoso@gmail>`,
+          from:    `"Offertas" <contacto.offertas@gmail.com>`,
           to:      cart.user.email,
           subject: `🛒 ${cart.user.name.split(" ")[0]}, tu carrito te está esperando`,
           html:    buildEmailHtml(cart.user.name.split(" ")[0], items),
@@ -175,5 +175,6 @@ function startAbandonedCartJob() {
   });
 
 }
+
 
 module.exports = { startAbandonedCartJob, checkAbandonedCarts };
