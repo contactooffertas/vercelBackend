@@ -5,8 +5,8 @@ const transporter = nodemailer.createTransport({
   port: 465,
   secure: true,
   auth: {
-    user: 'contacto.offertas@gmail.com',
-    pass: 'dikd rskl kdcq qkpy',
+    user: process.env.EMAIL_USER,
+    pass:process.env.EMAIL_PASS,
   },
   connectionTimeout: 10000,
   greetingTimeout: 10000,
@@ -31,4 +31,5 @@ const sendEmail = async (to, subject, text, html) => {
 
 
 module.exports = sendEmail;
+
 
