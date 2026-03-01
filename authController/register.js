@@ -243,7 +243,7 @@ exports.register = async (req, res) => {
     // Email en background — no bloquea la respuesta
     sendEmail(
       email,
-      '🔐 Código de verificación — Offerton',
+      '🔐 Código de verificación — Off-ertas',
       `Tu código de verificación es: ${code}. Válido por 10 minutos.`,
       verificationEmailHTML(code, name)
     ).catch(err => console.error('Error enviando email de verificación:', err));
@@ -389,5 +389,4 @@ exports.resetPassword = async (req, res) => {
     console.error('resetPassword error:', err);
     res.status(500).json({ message: 'Error del servidor' });
   }
-
 };
