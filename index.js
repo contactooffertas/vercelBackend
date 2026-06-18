@@ -26,8 +26,23 @@ const app = express();
 connectDB();
 
 // ── Middlewares globales ──────────────────────────────────────────────────────
+const ALLOWED_ORIGINS = [
+  "https://ofertas-lime-ten.vercel.app",
+  "http://localhost:3000",
+];
+
 app.use(cors({
-  origin:  'https://ofertas-lime-ten.vercel.app',
+  origin: (origin, callback) => {
+    if (
+      !origin ||
+      ALLOWED_ORIGINS.includes(origin) ||
+      /^https:\/\/ofertas-[a-z0-9-]+-contactooffertas-projects\.vercel\.app$/.test(origin)
+    ) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS bloqueado: ${origin}`));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
