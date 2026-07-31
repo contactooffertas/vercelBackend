@@ -18,7 +18,9 @@ const reportRoutes         = require('./routes/reportRoute');
 const announcementRoutes   = require('./routes/announcementRoute');
 const terminosRoutes       = require('./routes/terminosRoute');
 const eliminaUsuarioRoutes = require('./routes/eliminarUsuarioRoute');
-const shareRoutes          = require('./routes/shareRoute'); // ← nuevo: URL linda /p/:id
+const shareRoutes          = require('./routes/shareRoute'); 
+const trackingRoutes = require('./routes/tracking.routes');
+
 const { router: pushRoutes } = require('./routes/pushRoute');
 // ─────────────────────────────────────────────────────────────────────────────
 const app = express();
@@ -74,6 +76,7 @@ app.use('/api/admin',           adminRoutes);
 app.use('/api/announcements',   announcementRoutes);
 app.use('/api/terminos',        terminosRoutes);
 app.use('/api/elimina-usuario', eliminaUsuarioRoutes);
+app.use('/api/tracking', trackingRoutes);
 
 // ── Exportar app para Vercel (serverless) ─────────────────────────────────────
 // En Vercel NO se llama a app.listen(); el runtime lo maneja automáticamente.
