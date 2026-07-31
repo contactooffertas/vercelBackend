@@ -10,6 +10,7 @@ const {
   updateProduct,
   deleteProduct,
   requestProductReview,
+  setFlashOffer,
   // Rutas públicas
   getFeaturedProducts,
   getPublicProducts,
@@ -24,10 +25,7 @@ router.get("/featured",            getFeaturedProducts);
 router.get("/random",              getRandomProducts);
 router.get("/public-stats",        getPublicStats);
 router.get("/featured-businesses", getFeaturedBusinesses);
-
-// Alias dentro de /api/products, además de la URL linda /p/:id (ver routes/shareRoute.js)
 router.get("/:id/share",           getProductShareCard);
-
 router.get("/",                    getPublicProducts);
 
 // ===== RUTAS PRIVADAS =====
@@ -36,9 +34,10 @@ router.post("/",                   auth, upload.single("image"), createProduct);
 router.put("/:id",                 auth, upload.single("image"), updateProduct);
 router.delete("/:id",              auth, deleteProduct);
 
+// ── Oferta Flash ─────────────────────────────────────────────────────────
+router.patch("/:id/flash-offer",    auth, setFlashOffer);
+
 // ── Solicitar revisión de producto bloqueado ────────────────────────────────
-// Tres aliases para cubrir el frontend (POST submit-review) y cualquier
-// versión antigua que usara PATCH request-review
 router.post("/:id/submit-review",   auth, requestProductReview);
 router.patch("/:id/submit-review",  auth, requestProductReview);
 router.patch("/:id/request-review", auth, requestProductReview);
