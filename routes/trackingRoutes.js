@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { trackEvent, getLeadsByBusiness } = require('../controllers/trackingController');
-const { protect } = require('../middleware/authMiddleware'); // tu middleware
+const protect = require('../middleware/authMiddleware'); // tu middleware (export por defecto)
 
 // Público: cualquier web puede trackear (después le pones rate-limit)
 router.post('/event', trackEvent);
