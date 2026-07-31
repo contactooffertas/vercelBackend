@@ -42,7 +42,7 @@ function verificationEmailHTML(code, name) {
       <tr><td align="center">
         <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
           <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:36px 40px;text-align:center;">
-            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Off<span style="color:#fed7aa;">erton</span></h1>
+            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Mercado<span style="color:#fed7aa;">Rosario</span></h1>
             <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
           </td></tr>
           <tr><td style="padding:40px 40px 32px;">
