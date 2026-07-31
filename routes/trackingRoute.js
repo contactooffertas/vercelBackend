@@ -6,6 +6,7 @@ const { protect } = require('../middlewares/authMiddleware'); // tu middleware
 // Público: cualquier web puede trackear (después le pones rate-limit)
 router.post('/event', trackEvent);
 
+
 // Privado: solo el dueño del negocio
 router.get('/leads/:businessId', protect, getLeadsByBusiness);
 
