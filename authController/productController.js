@@ -508,3 +508,114 @@ exports.getPublicStats = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// ─────────────────────────────────────────────
+// COMPARTIR PRODUCTO (Open Graph card + redirect lindo)
+// GET /p/:id            → URL linda: https://new-backend-lovat.vercel.app/p/<id>
+// GET /api/products/:id/share  → alias, mismo resultado
+//
+// Genera una página HTML con meta tags Open Graph / Twitter Card
+// (imagen, nombre, precio) para que al pegar el link en WhatsApp/
+// Instagram/Telegram se vea la preview del producto. Cuando un
+// usuario real hace clic, se lo redirige automáticamente a la
+// página del negocio con el producto resaltado.
+// ─────────────────────────────────────────────
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://ofertas-lime-ten.vercel.app";
+const BACKEND_URL  = process.env.BACKEND_URL  || "https://new-backend-lovat.vercel.app";
+
+function escapeHtml(str = "") {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+exports.getProductShareCard = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const product = await Product.findById(id)
+      .populate("businessId", "name city logo verified")
+      .lean();
+
+    if (!product || product.blocked) {
+      return res.redirect(302, FRONTEND_URL);
+    }
+
+    const business = product.businessId;
+    const bizId = business?._id?.toString();
+
+    // A dónde va el usuario real una vez que ve la preview.
+    // ?p=<id> hace que la página de negocio resalte y scrollee a ese producto.
+    const targetUrl = bizId
+      ? `${FRONTEND_URL}/negocio/${bizId}?p=${product._id}`
+      : FRONTEND_URL;
+
+    const priceText = `$${Number(product.price).toLocaleString("es-AR")}`;
+    const title = `${product.name} · ${priceText}`;
+    const description = product.description
+      ? product.description.slice(0, 160)
+      : `Descubrí "${product.name}" en ${business?.name || "Offertas"}${business?.city ? ` · ${business.city}` : ""}. ¡Aprovechá esta oferta!`;
+    const image = product.image || "https://via.placeholder.com/600x400?text=Producto";
+    const shareUrl = `${BACKEND_URL}/p/${product._id}`;
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(title)}</title>
+<meta name="description" content="${escapeHtml(description)}" />
+
+<meta property="og:type" content="product" />
+<meta property="og:title" content="${escapeHtml(title)}" />
+<meta property="og:description" content="${escapeHtml(description)}" />
+<meta property="og:image" content="${escapeHtml(image)}" />
+<meta property="og:image:secure_url" content="${escapeHtml(image)}" />
+<meta property="og:image:width" content="600" />
+<meta property="og:image:height" content="400" />
+<meta property="og:url" content="${escapeHtml(shareUrl)}" />
+<meta property="og:site_name" content="Offertas" />
+<meta property="product:price:amount" content="${product.price}" />
+<meta property="product:price:currency" content="ARS" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${escapeHtml(title)}" />
+<meta name="twitter:description" content="${escapeHtml(description)}" />
+<meta name="twitter:image" content="${escapeHtml(image)}" />
+
+<link rel="canonical" href="${escapeHtml(targetUrl)}" />
+<meta http-equiv="refresh" content="0; url=${escapeHtml(targetUrl)}" />
+<script>window.location.replace(${JSON.stringify(targetUrl)});</script>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,sans-serif;background:#0f0f10;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:1.5rem}
+  .card{max-width:320px}
+  img{width:100%;max-width:240px;aspect-ratio:3/2;object-fit:cover;border-radius:14px;margin-bottom:1.25rem;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  .name{font-size:1.05rem;font-weight:700;margin:0 0 0.35rem}
+  .price{color:#f97316;font-weight:800;font-size:1.2rem;margin:0 0 1rem}
+  .spinner{width:20px;height:20px;border:2.5px solid rgba(255,255,255,.25);border-top-color:#f97316;border-radius:50%;margin:0 auto 1rem;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  a.fallback{color:#f97316;text-decoration:none;font-weight:600;font-size:0.85rem}
+</style>
+</head>
+<body>
+  <div class="card">
+    <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}" />
+    <p class="name">${escapeHtml(product.name)}</p>
+    <p class="price">${escapeHtml(priceText)}</p>
+    <div class="spinner"></div>
+    <a class="fallback" href="${escapeHtml(targetUrl)}">Si no sos redirigido, hacé clic acá</a>
+  </div>
+</body>
+</html>`;
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.status(200).send(html);
+  } catch (err) {
+    console.error("getProductShareCard:", err);
+    res.redirect(302, FRONTEND_URL);
+  }
+};
