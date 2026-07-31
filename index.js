@@ -20,7 +20,6 @@ const terminosRoutes       = require('./routes/terminosRoute');
 const eliminaUsuarioRoutes = require('./routes/eliminarUsuarioRoute');
 const shareRoutes          = require('./routes/shareRoute'); // ← nuevo: URL linda /p/:id
 const { router: pushRoutes } = require('./routes/pushRoute');
-
 // ─────────────────────────────────────────────────────────────────────────────
 const app = express();
 connectDB();
