@@ -10,13 +10,13 @@ const {
   updateProduct,
   deleteProduct,
   requestProductReview,
-
   // Rutas públicas
   getFeaturedProducts,
   getPublicProducts,
   getRandomProducts,
   getFeaturedBusinesses,
   getPublicStats,
+  getProductShareCard,
 } = require("../authController/productController");
 
 // ===== RUTAS PÚBLICAS (no requieren autenticación) =====
@@ -24,6 +24,10 @@ router.get("/featured",            getFeaturedProducts);
 router.get("/random",              getRandomProducts);
 router.get("/public-stats",        getPublicStats);
 router.get("/featured-businesses", getFeaturedBusinesses);
+
+// Alias dentro de /api/products, además de la URL linda /p/:id (ver routes/shareRoute.js)
+router.get("/:id/share",           getProductShareCard);
+
 router.get("/",                    getPublicProducts);
 
 // ===== RUTAS PRIVADAS =====
