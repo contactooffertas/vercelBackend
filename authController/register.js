@@ -21,7 +21,7 @@ function verificationEmailHTML(code, name) {
           <tr><td style="padding:40px 40px 32px;">
             <h2 style="margin:0 0 12px;color:#111827;font-size:22px;font-weight:700;">¡Hola, ${name}! 👋</h2>
             <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
-              Gracias por registrarte en Offerton. Para activar tu cuenta, ingresá el siguiente código:
+              Gracias por registrarte en Mercado Rosario. Para activar tu cuenta, ingresá el siguiente código:
             </p>
             <div style="background:#fff7ed;border:2px dashed #f97316;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
               <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Código de verificación</p>
@@ -32,7 +32,7 @@ function verificationEmailHTML(code, name) {
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
             <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">
-              © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.<br/>Este es un email automático, por favor no respondas.
+              © ${new Date().getFullYear()} Mercado Rosario. Todos los derechos reservados.<br/>Este es un email automático, por favor no respondas.
             </p>
           </td></tr>
         </table>
@@ -68,7 +68,7 @@ function resendEmailHTML(code, name) {
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
             <p style="margin:0;color:#9ca3af;font-size:12px;">
-              © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.<br/>Este es un email automático, por favor no respondas.
+              © ${new Date().getFullYear()} Mercado Rosario. Todos los derechos reservados.<br/>Este es un email automático, por favor no respondas.
             </p>
           </td></tr>
         </table>
@@ -108,7 +108,7 @@ function forgotPasswordHTML(code, name) {
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
             <p style="margin:0;color:#9ca3af;font-size:12px;">
-              © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.<br/>Este es un email automático, por favor no respondas.
+              © ${new Date().getFullYear()} Mercado Rosario. Todos los derechos reservados.<br/>Este es un email automático, por favor no respondas.
             </p>
           </td></tr>
         </table>
@@ -143,7 +143,7 @@ function passwordChangedHTML(name) {
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
             <p style="margin:0;color:#9ca3af;font-size:12px;">
-              © ${new Date().getFullYear()} Offerton. Todos los derechos reservados.
+              © ${new Date().getFullYear()} Mercado Rosario. Todos los derechos reservados.
             </p>
           </td></tr>
         </table>
@@ -186,7 +186,7 @@ exports.register = async (req, res) => {
     try {
       await sendEmail(
         email,
-        '🔐 Código de verificación — Offerton',
+        '🔐 Código de verificación — Mercado Rosario',
         `Tu código de verificación es: ${code}. Válido por 10 minutos.`,
         verificationEmailHTML(code, name)
       );
@@ -252,7 +252,7 @@ exports.resendVerificationCode = async (req, res) => {
     try {
       await sendEmail(
         email,
-        '🔄 Nuevo código de verificación — Offerton',
+        '🔄 Nuevo código de verificación — Mercado Rosario',
         `Tu nuevo código es: ${newCode}. Válido por 10 minutos.`,
         resendEmailHTML(newCode, user.name)
       );
@@ -288,7 +288,7 @@ exports.forgotPassword = async (req, res) => {
     try {
       await sendEmail(
         email,
-        '🔑 Recuperar contraseña — Offerton',
+        '🔑 Recuperar contraseña — Mercado Rosario',
         `Tu código para restablecer la contraseña es: ${code}. Válido por 15 minutos.`,
         forgotPasswordHTML(code, user.name)
       );
@@ -334,7 +334,7 @@ exports.resetPassword = async (req, res) => {
     try {
       await sendEmail(
         email,
-        '✅ Contraseña actualizada — Offerton',
+        '✅ Contraseña actualizada — Mercado Rosario',
         'Tu contraseña fue actualizada correctamente.',
         passwordChangedHTML(user.name)
       );
