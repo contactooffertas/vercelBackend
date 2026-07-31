@@ -20,7 +20,7 @@ const announcementRoutes   = require('./routes/announcementRoute');
 const terminosRoutes       = require('./routes/terminosRoute');
 const eliminaUsuarioRoutes = require('./routes/eliminarUsuarioRoute');
 const shareRoutes          = require('./routes/shareRoute'); 
-const trackingRoutes = require('./routes/trackingRoutes');
+const trackingRoutes = require('./routes/trackingRoute');
 
 const { router: pushRoutes } = require('./routes/pushRoute');
 // ─────────────────────────────────────────────────────────────────────────────
