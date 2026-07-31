@@ -1,7 +1,7 @@
 // routes/tracking.routes.js
 const express = require('express');
 const router = express.Router();
-const controller = require('../controllers/tracking.controller');
+const controller = require('../controllers/trackingController');
 
 // Público: cualquier web puede trackear (después le pones rate-limit)
 router.post('/event', controller.trackEvent);
