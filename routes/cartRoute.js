@@ -14,35 +14,26 @@ const PRODUCT_POPULATE = {
   },
 };
 
-function getFlashFinalPrice(product) {
-  if (!product.flashOffer?.active) return null;
-  const base = product.originalPrice?? product.price;
-  const discount = product.flashOffer.discount || 0;
-  return base * (1 - discount / 100);
-}
-
-function isFlashValid(product) {
-  if (!product.flashOffer?.active) return false;
-  if (product.flashOffer.endDate && new Date(product.flashOffer.endDate) < new Date()) return false;
-  return true;
-}
-
 function formatItems(cartItems) {
-  return cartItems.map(i => ({
-    _id: i._id,
-    productId: i.product._id,
-    name: i.product.name,
-    price: i.price, // YA ES EL FINAL (52k si fue flash)
-    originalPrice: i.originalPrice?? i.product.originalPrice?? i.product.price,
-    discount: i.discount?? i.product.discount,
-    image: i.product.image,
-    stock: i.product.stock || 99,
-    quantity: i.quantity,
-    isFlashOffer: i.isFlashOffer || false,
-    businessId: i.product.businessId?._id || i.product.businessId || null,
-    businessName: i.product.businessId?.name || null,
-    businessPhone: i.product.businessId?.phone || "",
-  }));
+  return cartItems.map(i => {
+    // Si el item no tiene product populado (borrado) lo salteamos
+    if (!i.product ||!i.product._id) return null;
+    return {
+      _id: i._id,
+      productId: i.product._id,
+      name: i.product.name,
+      price: i.price, // este es el que importa: 52000 si fue flash
+      originalPrice: i.originalPrice || i.product.originalPrice || i.product.price,
+      discount: i.discount,
+      image: i.product.image,
+      stock: i.product.stock || 99,
+      quantity: i.quantity,
+      isFlashOffer: i.isFlashOffer || false,
+      businessId: i.product.businessId?._id || i.product.businessId || null,
+      businessName: i.product.businessId?.name || null,
+      businessPhone: i.product.businessId?.phone || "",
+    };
+  }).filter(Boolean);
 }
 
 // ─── GET /api/cart ─────────────────────────────────────────────────────────
@@ -59,7 +50,7 @@ router.get("/", auth, async (req, res) => {
 // ─── POST /api/cart/add ───────────────────────────────────────────────────
 router.post("/add", auth, async (req, res) => {
   try {
-    const { productId, quantity = 1, price: frontPrice, originalPrice: frontOriginal, discount: frontDiscount, isFlashOffer: frontIsFlash } = req.body;
+    const { productId, quantity = 1 } = req.body;
 
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ message: "Producto no encontrado" });
@@ -67,51 +58,38 @@ router.post("/add", auth, async (req, res) => {
     let cart = await Cart.findOne({ user: req.user.id });
     if (!cart) cart = new Cart({ user: req.user.id, items: [] });
 
-    // ── CALCULO DE PRECIO CON PRIORIDAD FLASH ──
+    // ── ACA ESTA EL FIX ──
+    // Si el producto tiene flashOffer activa, esa manda SIEMPRE
+    const hasFlash = product.flashOffer && product.flashOffer.active === true;
+    const basePrice = product.originalPrice || product.price; // 65000 en tu ejemplo
+
     let finalPrice;
     let finalOriginalPrice;
     let finalDiscount;
-    let finalIsFlash = false;
+    let finalIsFlash;
 
-    if (frontIsFlash && isFlashValid(product)) {
-      // Caso 1: viene de oferta flash y sigue vigente -> prioridad 100%
-      const base = product.originalPrice?? product.price;
-      finalOriginalPrice = base;
-      finalDiscount = product.flashOffer.discount;
-      finalPrice = getFlashFinalPrice(product);
-      finalIsFlash = true;
-    } else if (frontPrice && frontIsFlash) {
-      // Fallback si el front ya calculó (por si el back no tiene originalPrice)
-      finalPrice = frontPrice;
-      finalOriginalPrice = frontOriginal;
-      finalDiscount = frontDiscount;
+    if (hasFlash) {
+      finalOriginalPrice = basePrice; // 65000
+      finalDiscount = product.flashOffer.discount; // 20
+      finalPrice = basePrice * (1 - finalDiscount / 100); // 65000 * 0.8 = 52000
       finalIsFlash = true;
     } else {
       // Precio normal
       finalOriginalPrice = product.originalPrice || product.price;
       finalDiscount = product.discount || 0;
-      finalPrice = product.discount
-       ? product.price * (1 - product.discount / 100) // si tenes descuento ya aplicado en price, usa solo product.price
-        : product.price;
-      // Si tu price en DB ya es el precio con 5% (61k) entonces finalPrice = product.price
-      // Si tu price es 65k y discount 5, entonces descomenta la linea de arriba
-      // Para tu caso: 65k originalPrice, price 61k -> usamos product.price directo
-      if (product.discount) {
-         // si guardas price=61750 y discount=5, el price ya es final
-         finalPrice = product.price;
-      }
+      finalPrice = product.price; // 61750 (tu precio ya con 5%)
+      finalIsFlash = false;
     }
 
-    const existing = cart.items.find(i => i.product.toString() === productId);
-    if (existing) {
-      existing.quantity = Math.min(product.stock || 99, existing.quantity + quantity);
-      // Si agrega como flash, pisamos el precio al de flash
-      if (finalIsFlash) {
-        existing.price = finalPrice;
-        existing.originalPrice = finalOriginalPrice;
-        existing.discount = finalDiscount;
-        existing.isFlashOffer = true;
-      }
+    const existingIndex = cart.items.findIndex(i => i.product.toString() === productId);
+
+    if (existingIndex > -1) {
+      // Si ya existe, actualizamos cantidad Y PISAMOS EL PRECIO con el nuevo (52k)
+      cart.items[existingIndex].quantity = Math.min(product.stock || 99, cart.items[existingIndex].quantity + quantity);
+      cart.items[existingIndex].price = finalPrice;
+      cart.items[existingIndex].originalPrice = finalOriginalPrice;
+      cart.items[existingIndex].discount = finalDiscount;
+      cart.items[existingIndex].isFlashOffer = finalIsFlash;
     } else {
       cart.items.push({
         product: productId,
@@ -129,7 +107,7 @@ router.post("/add", auth, async (req, res) => {
 
     res.json({ items: formatItems(cart.items) });
   } catch (err) {
-    console.error(err);
+    console.error("ADD CART ERROR:", err);
     res.status(500).json({ message: "Error al agregar al carrito" });
   }
 });
@@ -237,7 +215,7 @@ router.post("/checkout", auth, async (req, res) => {
         };
       }
 
-      // USAMOS EL PRECIO GUARDADO EN EL CARRITO, NO RECALCULAMOS
+      // ACA USAMOS EL PRECIO GUARDADO (52000), NO RECALCULAMOS
       const unitPrice = i.price;
 
       groupsByBusiness[bizId].items.push({
