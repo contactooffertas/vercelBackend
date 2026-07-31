@@ -1,16 +1,15 @@
-
-// controllers/tracking.controller.js
 const crypto = require('crypto');
 const TrackingEvent = require('../models/TrackingEvent');
 const LeadProfile = require('../models/LeadProfile');
 
 const hashIp = (ip) => crypto.createHash('sha256').update(ip || '0.0.0.0').digest('hex');
 
-exports.trackEvent = async (req, res) => {
+// POST /api/tracking/event — público
+const trackEvent = async (req, res) => {
   try {
     const { business_id, anonymous_id, user_id, session_id, event_name, properties, url } = req.body;
 
-    if (!business_id ||!anonymous_id ||!event_name) {
+    if (!business_id || !anonymous_id || !event_name) {
       return res.status(200).json({ ok: false }); // nunca rompas el front
     }
 
@@ -37,7 +36,7 @@ exports.trackEvent = async (req, res) => {
         business_id,
         fingerprint_hash: fingerprint,
         last_seen: { $gte: yesterday },
-        user_id: null // solo anonimos
+        user_id: null, // solo anonimos
       });
       if (profile) {
         profile.anonymous_id = anonymous_id; // le reasignamos el nuevo anon_id
@@ -55,7 +54,7 @@ exports.trackEvent = async (req, res) => {
       });
     } else {
       // MERGE: si era anónimo y ahora se logueó
-      if (user_id &&!profile.user_id) {
+      if (user_id && !profile.user_id) {
         profile.user_id = user_id;
       }
       profile.last_seen = new Date();
@@ -89,32 +88,44 @@ exports.trackEvent = async (req, res) => {
       properties,
       url,
       ip_hash: hashIp(ip),
-      user_agent: userAgent
+      user_agent: userAgent,
     });
 
     return res.status(200).json({ ok: true });
-
-  } catch (err) {
-    console.error("Tracking error:", err);
-    return res.status(200).json({ ok: false });
+  } catch (error) {
+    console.error('trackEvent error:', error);
+    return res.status(200).json({ ok: false }); // nunca rompas el front
   }
 };
 
-// Endpoint para que cada negocio vea sus leads
-exports.getLeadsByBusiness = async (req, res) => {
-  const { businessId } = req.params;
-  // acá validas que el que pide sea el dueño del businessId
+// GET /api/tracking/leads/:businessId — privado (dueño del negocio)
+const getLeadsByBusiness = async (req, res) => {
+  try {
+    const { businessId } = req.params;
+    // acá validas que el que pide sea el dueño del businessId
 
-  const leads = await LeadProfile.find({ business_id: businessId })
-   .sort({ lead_score: -1, last_seen: -1 })
-   .limit(100);
+    const leads = await LeadProfile.find({ business_id: businessId })
+      .sort({ lead_score: -1, last_seen: -1 })
+      .limit(100);
 
-  const topProducts = await TrackingEvent.aggregate([
-    { $match: { business_id: businessId, event_name: 'product_view' } },
-    { $group: { _id: "$properties.product_id", totalViews: { $sum: 1 }, totalSeconds: { $sum: "$properties.seconds" } } },
-    { $sort: { totalViews: -1 } },
-    { $limit: 10 }
-  ]);
+    const topProducts = await TrackingEvent.aggregate([
+      { $match: { business_id: businessId, event_name: 'product_view' } },
+      {
+        $group: {
+          _id: '$properties.product_id',
+          totalViews: { $sum: 1 },
+          totalSeconds: { $sum: '$properties.seconds' },
+        },
+      },
+      { $sort: { totalViews: -1 } },
+      { $limit: 10 },
+    ]);
 
-  res.json({ leads, topProducts });
+    return res.json({ leads, topProducts });
+  } catch (error) {
+    console.error('getLeadsByBusiness error:', error);
+    return res.status(500).json({ message: 'Error interno del servidor.' });
+  }
 };
+
+module.exports = { trackEvent, getLeadsByBusiness };
