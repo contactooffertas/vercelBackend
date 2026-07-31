@@ -1,4 +1,5 @@
 // authController/productController.js
+const mongoose = require("mongoose");
 const Product  = require("../models/productoModel");
 const Business = require("../models/businessModel");
 const Featured = require("../models/featuredModel");
@@ -510,18 +511,30 @@ exports.getPublicStats = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
-// COMPARTIR PRODUCTO (Open Graph card + redirect lindo)
-// GET /p/:id            → URL linda: https://new-backend-lovat.vercel.app/p/<id>
-// GET /api/products/:id/share  → alias, mismo resultado
+// COMPARTIR PRODUCTO (Open Graph card + redirect)
+// GET /p/:id                    → URL linda: https://new-backend-lovat.vercel.app/p/<id>
+// GET /api/products/:id/share   → alias, mismo resultado
 //
-// Genera una página HTML con meta tags Open Graph / Twitter Card
-// (imagen, nombre, precio) para que al pegar el link en WhatsApp/
-// Instagram/Telegram se vea la preview del producto. Cuando un
-// usuario real hace clic, se lo redirige automáticamente a la
-// página del negocio con el producto resaltado.
+// CLAVE DEL FIX:
+// Antes, esta ruta SIEMPRE devolvía un HTML con meta-refresh + JS redirect,
+// tanto para bots (WhatsApp/Facebook/Telegram, que arman la preview) como
+// para usuarios reales. El problema es que muchos navegadores "in-app"
+// (el webview que abre WhatsApp/Instagram/Telegram al tocar un link) NO
+// ejecutan ese meta-refresh/JS de forma confiable, así que el usuario se
+// quedaba trabado viendo el spinner y nunca llegaba al negocio/producto.
+//
+// Ahora: detectamos el User-Agent.
+//   • Si es un bot de preview (WhatsApp, Facebook, Twitter, Telegram, etc.)
+//     → le servimos el HTML con las meta tags Open Graph (no necesita
+//       redirect real, solo lee los <meta>).
+//   • Si es un usuario real (cualquier otro User-Agent)
+//     → hacemos un 302 redirect DIRECTO al negocio, sin depender de JS.
 // ─────────────────────────────────────────────
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://ofertas-lime-ten.vercel.app";
 const BACKEND_URL  = process.env.BACKEND_URL  || "https://new-backend-lovat.vercel.app";
+
+// User-Agents típicos de los bots que generan la preview del link
+const BOT_UA_REGEX = /facebookexternalhit|Facebot|WhatsApp|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|Pinterest|vkShare|Google-InspectionTool|SkypeUriPreview|Applebot|redditbot|Snapchat|Instagram/i;
 
 function escapeHtml(str = "") {
   return String(str)
@@ -533,19 +546,37 @@ function escapeHtml(str = "") {
 }
 
 exports.getProductShareCard = async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
+    // Validamos el formato del id ANTES de pegarle a la DB.
+    // Si llega un id mal formado, Product.findById tira un CastError que
+    // antes se tragaba silenciosamente y mandaba siempre al home sin
+    // dejar rastro. Ahora lo logueamos para poder detectarlo en Vercel.
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.warn(`[getProductShareCard] id inválido recibido: "${id}"`);
+      return res.redirect(302, FRONTEND_URL);
+    }
 
     const product = await Product.findById(id)
       .populate("businessId", "name city logo verified")
       .lean();
 
-    if (!product || product.blocked) {
+    if (!product) {
+      console.warn(`[getProductShareCard] producto no encontrado: ${id}`);
+      return res.redirect(302, FRONTEND_URL);
+    }
+    if (product.blocked) {
+      console.warn(`[getProductShareCard] producto bloqueado: ${id}`);
       return res.redirect(302, FRONTEND_URL);
     }
 
     const business = product.businessId;
     const bizId = business?._id?.toString();
+
+    if (!bizId) {
+      console.warn(`[getProductShareCard] producto ${id} sin negocio asociado`);
+    }
 
     // A dónde va el usuario real una vez que ve la preview.
     // ?p=<id> hace que la página de negocio resalte y scrollee a ese producto.
@@ -553,6 +584,15 @@ exports.getProductShareCard = async (req, res) => {
       ? `${FRONTEND_URL}/negocio/${bizId}?p=${product._id}`
       : FRONTEND_URL;
 
+    const userAgent = req.headers["user-agent"] || "";
+    const isBot = BOT_UA_REGEX.test(userAgent);
+
+    // ── Usuario real: redirect directo, sin depender de JS ni meta-refresh ──
+    if (!isBot) {
+      return res.redirect(302, targetUrl);
+    }
+
+    // ── Bot de preview: le servimos el HTML con las meta tags Open Graph ──
     const priceText = `$${Number(product.price).toLocaleString("es-AR")}`;
     const title = `${product.name} · ${priceText}`;
     const description = product.description
@@ -615,7 +655,7 @@ exports.getProductShareCard = async (req, res) => {
     res.set("Content-Type", "text/html; charset=utf-8");
     res.status(200).send(html);
   } catch (err) {
-    console.error("getProductShareCard:", err);
+    console.error(`[getProductShareCard] error con id="${id}":`, err.message);
     res.redirect(302, FRONTEND_URL);
   }
 };
