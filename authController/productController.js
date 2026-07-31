@@ -43,6 +43,53 @@ function mapBusiness(p) {
 }
 
 // ─────────────────────────────────────────────
+// OFERTA FLASH — helpers
+// ─────────────────────────────────────────────
+
+const FLASH_MIN_HOURS = 1;
+const FLASH_MAX_HOURS = 24;
+const FLASH_MIN_DISCOUNT = 1;
+const FLASH_MAX_DISCOUNT = 90;
+
+function emptyFlashOffer() {
+  return { active: false, discount: 0, startAt: null, endAt: null, durationHours: 0 };
+}
+
+function buildFlashOffer(hours, discount) {
+  const h = Math.min(Math.max(parseFloat(hours), FLASH_MIN_HOURS), FLASH_MAX_HOURS);
+  const d = Math.min(Math.max(parseFloat(discount), FLASH_MIN_DISCOUNT), FLASH_MAX_DISCOUNT);
+  const now = new Date();
+  return {
+    active: true,
+    discount: d,
+    startAt: now,
+    endAt: new Date(now.getTime() + h * 60 * 60 * 1000),
+    durationHours: h,
+  };
+}
+
+// Recalcula si la oferta flash sigue vigente SIN tocar la DB (para lecturas
+// públicas de alto tráfico). Si ya venció, la devuelve como inactiva y con
+// el descuento normal del producto, más "flashOfferSecondsLeft" para el
+// frontend (countdown).
+function normalizeFlashOffer(p) {
+  const fo = p.flashOffer;
+  if (!fo || !fo.active) {
+    return { ...p, flashOffer: fo || emptyFlashOffer(), flashOfferSecondsLeft: 0 };
+  }
+  const now = Date.now();
+  const end = fo.endAt ? new Date(fo.endAt).getTime() : NaN;
+  if (isNaN(end) || end <= now) {
+    return { ...p, flashOffer: { ...fo, active: false }, flashOfferSecondsLeft: 0 };
+  }
+  return { ...p, flashOfferSecondsLeft: Math.round((end - now) / 1000) };
+}
+
+function normalizeFlashOfferList(list) {
+  return list.map(normalizeFlashOffer);
+}
+
+// ─────────────────────────────────────────────
 // RUTAS PRIVADAS
 // ─────────────────────────────────────────────
 
@@ -50,8 +97,20 @@ exports.getMyProducts = async (req, res) => {
   try {
     const business = await Business.findOne({ owner: req.user.id });
     if (!business) return res.json([]);
-    const products = await Product.find({ businessId: business._id });
-    res.json(products);
+
+    // Housekeeping liviano: apagamos en la DB las ofertas flash ya vencidas
+    // cada vez que el vendedor entra a ver su lista de productos.
+    await Product.updateMany(
+      {
+        businessId: business._id,
+        "flashOffer.active": true,
+        "flashOffer.endAt": { $lte: new Date() },
+      },
+      { $set: { "flashOffer.active": false } }
+    );
+
+    const products = await Product.find({ businessId: business._id }).lean();
+    res.json(normalizeFlashOfferList(products));
   } catch (err) {
     res.status(500).json({ message: "Error al obtener tus productos" });
   }
@@ -72,7 +131,19 @@ exports.createProduct = async (req, res) => {
       fs.unlinkSync(req.file.path);
     }
 
-    const { price, discount, stock, deliveryRadius, originalPrice, ...rest } = req.body;
+    const {
+      price, discount, stock, deliveryRadius, originalPrice,
+      flashOfferHours, flashOfferDiscount,
+      ...rest
+    } = req.body;
+
+    let flashOffer = emptyFlashOffer();
+    const foHours = parseFloat(flashOfferHours);
+    const foDiscount = parseFloat(flashOfferDiscount);
+    if (foHours > 0 && foDiscount > 0) {
+      flashOffer = buildFlashOffer(foHours, foDiscount);
+    }
+
     const newProduct = await Product.create({
       ...rest,
       price:          parseFloat(price),
@@ -80,6 +151,7 @@ exports.createProduct = async (req, res) => {
       discount:       parseFloat(discount || 0),
       stock:          parseInt(stock || 10),
       deliveryRadius: parseFloat(deliveryRadius || 0),
+      flashOffer,
       user:           req.user.id,
       businessId:     business._id,
       image:          imageUrl,
@@ -97,7 +169,7 @@ exports.createProduct = async (req, res) => {
       productImageUrl: newProduct.image,
     }).catch(() => {});
 
-    res.status(201).json(newProduct);
+    res.status(201).json(normalizeFlashOffer(newProduct.toObject()));
   } catch (err) {
     res.status(500).json({ message: "Error creando producto", detail: err.message });
   }
@@ -116,12 +188,29 @@ exports.updateProduct = async (req, res) => {
       fs.unlinkSync(req.file.path);
     }
 
-    const { price, discount, stock, deliveryRadius, originalPrice, ...rest } = req.body;
+    const {
+      price, discount, stock, deliveryRadius, originalPrice,
+      flashOfferHours, flashOfferDiscount,
+      ...rest
+    } = req.body;
+
     if (price !== undefined)          product.price          = parseFloat(price);
     if (originalPrice !== undefined)  product.originalPrice  = originalPrice ? parseFloat(originalPrice) : null;
     if (discount !== undefined)       product.discount       = parseFloat(discount);
     if (stock !== undefined)          product.stock          = parseInt(stock);
     if (deliveryRadius !== undefined) product.deliveryRadius = parseFloat(deliveryRadius);
+
+    // Si mandan datos de oferta flash desde el form de edición, la seteamos.
+    // flashOfferHours === "0" (o vacío) => se cancela la oferta.
+    if (flashOfferHours !== undefined) {
+      const foHours = parseFloat(flashOfferHours);
+      const foDiscount = parseFloat(flashOfferDiscount);
+      if (foHours > 0 && foDiscount > 0) {
+        product.flashOffer = buildFlashOffer(foHours, foDiscount);
+      } else {
+        product.flashOffer = emptyFlashOffer();
+      }
+    }
 
     // Nunca permitir que el vendedor se desbloquee a sí mismo vía este endpoint
     const { blocked, blockedReason, ...safeRest } = rest;
@@ -134,7 +223,7 @@ exports.updateProduct = async (req, res) => {
     }
 
     await product.save();
-    res.json(product);
+    res.json(normalizeFlashOffer(product.toObject()));
   } catch (err) {
     res.status(500).json({ message: "Error actualizando producto", detail: err.message });
   }
@@ -153,10 +242,52 @@ exports.deleteProduct = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
+// OFERTA FLASH — activar / cancelar rápido
+// PATCH /api/products/:id/flash-offer
+// Body activar:  { hours: 1-24, discount: 1-90 }
+// Body cancelar: { active: false }
+// ─────────────────────────────────────────────
+exports.setFlashOffer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { hours, discount, active } = req.body;
+
+    const product = await Product.findById(id);
+    if (!product) return res.status(404).json({ message: "Producto no encontrado" });
+
+    const business = await Business.findOne({ owner: req.user.id });
+    if (!business || product.businessId?.toString() !== business._id.toString()) {
+      return res.status(403).json({ message: "No tenés permiso para gestionar este producto" });
+    }
+
+    if (active === false) {
+      product.flashOffer = emptyFlashOffer();
+      await product.save();
+      return res.json(normalizeFlashOffer(product.toObject()));
+    }
+
+    const hoursNum = parseFloat(hours);
+    const discountNum = parseFloat(discount);
+
+    if (!hoursNum || hoursNum < FLASH_MIN_HOURS || hoursNum > FLASH_MAX_HOURS) {
+      return res.status(400).json({ message: `La duración debe ser entre ${FLASH_MIN_HOURS} y ${FLASH_MAX_HOURS} horas` });
+    }
+    if (!discountNum || discountNum < FLASH_MIN_DISCOUNT || discountNum > FLASH_MAX_DISCOUNT) {
+      return res.status(400).json({ message: `El descuento debe ser entre ${FLASH_MIN_DISCOUNT}% y ${FLASH_MAX_DISCOUNT}%` });
+    }
+
+    product.flashOffer = buildFlashOffer(hoursNum, discountNum);
+    await product.save();
+
+    res.json(normalizeFlashOffer(product.toObject()));
+  } catch (err) {
+    res.status(500).json({ message: "Error configurando oferta flash", detail: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────
 // ENVIAR PRODUCTO A REVISIÓN
 // PATCH /api/products/:id/request-review
-// Permite al vendedor enviar un producto bloqueado a revisión del admin
-// Body: { note?: string }
 // ─────────────────────────────────────────────
 exports.requestProductReview = async (req, res) => {
   try {
@@ -166,7 +297,6 @@ exports.requestProductReview = async (req, res) => {
     const product = await Product.findById(id).populate("businessId", "name owner");
     if (!product) return res.status(404).json({ message: "Producto no encontrado" });
 
-    // Verificar que el producto pertenece al usuario autenticado
     const business = await Business.findOne({ owner: req.user.id });
     if (!business || product.businessId?._id?.toString() !== business._id.toString()) {
       return res.status(403).json({ message: "No tenés permiso para gestionar este producto" });
@@ -188,7 +318,6 @@ exports.requestProductReview = async (req, res) => {
     product.reviewNote  = note;
     await product.save();
 
-    // Notificar a todos los admins via socket
     const io = req.app.get("io");
     if (io) {
       io.to("admins").emit("product_review_requested", {
@@ -200,7 +329,6 @@ exports.requestProductReview = async (req, res) => {
       });
     }
 
-    // Notificación en BD para admins
     const admins = await User.find({ role: "admin" }).select("_id").lean();
     for (const admin of admins) {
       await createDBNotification(
@@ -313,7 +441,7 @@ exports.getFeaturedProducts = async (req, res) => {
       ...featuredByBiz.map(p =>     ({ ...mapBusiness(p), _featuredSource: "business" })),
     ]
       .filter(p => !p.business?.blocked)
-      .map(p => ({
+      .map(p => normalizeFlashOffer({
         ...p,
         _outOfRange: hasUserLocation && !estaEnRango({ p, userLat, userLng, hasUserLocation, maxUserRadiusKM }),
         _isFeatured: true,
@@ -354,7 +482,7 @@ exports.getFeaturedProducts = async (req, res) => {
           if (bizId && followedIds.has(bizId)) return true;
           return estaEnRango({ p, userLat, userLng, hasUserLocation, maxUserRadiusKM });
         })
-        .map(p => ({ ...p, _isFeatured: false }));
+        .map(p => normalizeFlashOffer({ ...p, _isFeatured: false }));
 
       organicMapped.sort((a, b) => {
         const aF = followedIds.has(a.business?._id?.toString()) ? 1 : 0;
@@ -431,7 +559,7 @@ exports.getPublicProducts = async (req, res) => {
       return (b.business?.rating ?? 0) - (a.business?.rating ?? 0);
     });
 
-    res.json({ products: filtered.slice(0, maxResults) });
+    res.json({ products: normalizeFlashOfferList(filtered).slice(0, maxResults) });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -477,7 +605,7 @@ exports.getRandomProducts = async (req, res) => {
       return (b.business?.rating ?? 0) - (a.business?.rating ?? 0);
     });
 
-    res.json({ products: filtered.slice(0, limit) });
+    res.json({ products: normalizeFlashOfferList(filtered).slice(0, limit) });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -512,28 +640,10 @@ exports.getPublicStats = async (req, res) => {
 
 // ─────────────────────────────────────────────
 // COMPARTIR PRODUCTO (Open Graph card + redirect)
-// GET /p/:id                    → URL linda: https://new-backend-lovat.vercel.app/p/<id>
-// GET /api/products/:id/share   → alias, mismo resultado
-//
-// CLAVE DEL FIX:
-// Antes, esta ruta SIEMPRE devolvía un HTML con meta-refresh + JS redirect,
-// tanto para bots (WhatsApp/Facebook/Telegram, que arman la preview) como
-// para usuarios reales. El problema es que muchos navegadores "in-app"
-// (el webview que abre WhatsApp/Instagram/Telegram al tocar un link) NO
-// ejecutan ese meta-refresh/JS de forma confiable, así que el usuario se
-// quedaba trabado viendo el spinner y nunca llegaba al negocio/producto.
-//
-// Ahora: detectamos el User-Agent.
-//   • Si es un bot de preview (WhatsApp, Facebook, Twitter, Telegram, etc.)
-//     → le servimos el HTML con las meta tags Open Graph (no necesita
-//       redirect real, solo lee los <meta>).
-//   • Si es un usuario real (cualquier otro User-Agent)
-//     → hacemos un 302 redirect DIRECTO al negocio, sin depender de JS.
 // ─────────────────────────────────────────────
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://ofertas-lime-ten.vercel.app";
 const BACKEND_URL  = process.env.BACKEND_URL  || "https://new-backend-lovat.vercel.app";
 
-// User-Agents típicos de los bots que generan la preview del link
 const BOT_UA_REGEX = /facebookexternalhit|Facebot|WhatsApp|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|Pinterest|vkShare|Google-InspectionTool|SkypeUriPreview|Applebot|redditbot|Snapchat|Instagram/i;
 
 function escapeHtml(str = "") {
@@ -549,10 +659,6 @@ exports.getProductShareCard = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Validamos el formato del id ANTES de pegarle a la DB.
-    // Si llega un id mal formado, Product.findById tira un CastError que
-    // antes se tragaba silenciosamente y mandaba siempre al home sin
-    // dejar rastro. Ahora lo logueamos para poder detectarlo en Vercel.
     if (!mongoose.Types.ObjectId.isValid(id)) {
       console.warn(`[getProductShareCard] id inválido recibido: "${id}"`);
       return res.redirect(302, FRONTEND_URL);
@@ -578,8 +684,6 @@ exports.getProductShareCard = async (req, res) => {
       console.warn(`[getProductShareCard] producto ${id} sin negocio asociado`);
     }
 
-    // A dónde va el usuario real una vez que ve la preview.
-    // ?p=<id> hace que la página de negocio resalte y scrollee a ese producto.
     const targetUrl = bizId
       ? `${FRONTEND_URL}/negocio/${bizId}?p=${product._id}`
       : FRONTEND_URL;
@@ -587,14 +691,23 @@ exports.getProductShareCard = async (req, res) => {
     const userAgent = req.headers["user-agent"] || "";
     const isBot = BOT_UA_REGEX.test(userAgent);
 
-    // ── Usuario real: redirect directo, sin depender de JS ni meta-refresh ──
     if (!isBot) {
       return res.redirect(302, targetUrl);
     }
 
-    // ── Bot de preview: le servimos el HTML con las meta tags Open Graph ──
-    const priceText = `$${Number(product.price).toLocaleString("es-AR")}`;
-    const title = `${product.name} · ${priceText}`;
+    // Precio efectivo para la preview: si hay oferta flash vigente, mostramos
+    // ese precio; si no, el normal con descuento normal (si tiene).
+    const flash = product.flashOffer;
+    const flashVigente = flash?.active && flash?.endAt && new Date(flash.endAt) > new Date();
+    const discountForShare = flashVigente ? flash.discount : (product.discount || 0);
+    const effectivePrice = discountForShare > 0
+      ? product.price * (1 - discountForShare / 100)
+      : product.price;
+
+    const priceText = `$${Number(effectivePrice).toLocaleString("es-AR")}`;
+    const title = flashVigente
+      ? `⚡ Oferta flash: ${product.name} · ${priceText}`
+      : `${product.name} · ${priceText}`;
     const description = product.description
       ? product.description.slice(0, 160)
       : `Descubrí "${product.name}" en ${business?.name || "Offertas"}${business?.city ? ` · ${business.city}` : ""}. ¡Aprovechá esta oferta!`;
@@ -618,7 +731,7 @@ exports.getProductShareCard = async (req, res) => {
 <meta property="og:image:height" content="400" />
 <meta property="og:url" content="${escapeHtml(shareUrl)}" />
 <meta property="og:site_name" content="Offertas" />
-<meta property="product:price:amount" content="${product.price}" />
+<meta property="product:price:amount" content="${effectivePrice}" />
 <meta property="product:price:currency" content="ARS" />
 
 <meta name="twitter:card" content="summary_large_image" />
