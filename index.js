@@ -1,4 +1,3 @@
-
 // server.js  –  versión Vercel (sin Socket.IO)
 require('dotenv').config();
 const express   = require('express');
@@ -19,6 +18,7 @@ const reportRoutes         = require('./routes/reportRoute');
 const announcementRoutes   = require('./routes/announcementRoute');
 const terminosRoutes       = require('./routes/terminosRoute');
 const eliminaUsuarioRoutes = require('./routes/eliminarUsuarioRoute');
+const shareRoutes          = require('./routes/shareRoute'); // ← nuevo: URL linda /p/:id
 const { router: pushRoutes } = require('./routes/pushRoute');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,6 +58,9 @@ app.get('/', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Deploy hecho Offertas conectado (Vercel)' });
 });
 
+// ── URL linda para compartir productos: https://tu-backend.vercel.app/p/<id> ──
+app.use('/p', shareRoutes);
+
 // ── Rutas de la API ───────────────────────────────────────────────────────────
 app.use('/api/auth',            authRoutes);
 app.use('/api/user',            userRoutes);
@@ -84,5 +87,3 @@ if (require.main === module) {
     console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
   });
 }
-
-
