@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
-const affiliateController = require('../controllers/affiliateController');
+const affiliateController = require('../authController/affiliateController');
 
 router.get('/status', authMiddleware, affiliateController.getStatus);
 router.post('/terms/accept', authMiddleware, affiliateController.acceptTerms);
