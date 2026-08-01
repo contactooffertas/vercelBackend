@@ -1,4 +1,5 @@
-// authController/productController.js
+// authController/productController.js  linea 723 <meta name="description" content="${escapeHtml(description)}" />
+ 
 const mongoose = require("mongoose");
 const Product  = require("../models/productoModel");
 const Business = require("../models/businessModel");
@@ -720,7 +721,6 @@ exports.getProductShareCard = async (req, res) => {
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(title)}</title>
-<meta name="description" content="${escapeHtml(description)}" />
 
 <meta property="og:type" content="product" />
 <meta property="og:title" content="${escapeHtml(title)}" />
