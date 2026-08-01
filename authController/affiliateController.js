@@ -2,7 +2,7 @@
 const AffiliateTermsAcceptance = require('../models/AffiliateTermsAcceptance');
 const AffiliateSellerApplication = require('../models/AffiliateSellerApplication');
 const AffiliateBuyerApplication = require('../models/AffiliateBuyerApplication');
-const User = require('../models/User');
+const User = require('../models/userModel');
 
 // Versión vigente de los Términos y Condiciones del Programa de Afiliados.
 // Cuando en el futuro se agregue el CRUD de versiones desde el panel admin,
