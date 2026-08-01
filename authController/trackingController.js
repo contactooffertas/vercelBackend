@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const TrackingEvent = require('../models/TrackingEvent');
 const LeadProfile = require('../models/LeadProfile');
-
 const hashIp = (ip) => crypto.createHash('sha256').update(ip || '0.0.0.0').digest('hex');
 
 // POST /api/tracking/event — público
