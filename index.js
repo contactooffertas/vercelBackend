@@ -78,7 +78,7 @@ app.use('/api/announcements',   announcementRoutes);
 app.use('/api/terminos',        terminosRoutes);
 app.use('/api/elimina-usuario', eliminaUsuarioRoutes);
 app.use('/api/tracking', trackingRoutes);
- app.use('/api/affiliates', affiliateRoutes);
+
 
 // ── Exportar app para Vercel (serverless) ─────────────────────────────────────
 // En Vercel NO se llama a app.listen(); el runtime lo maneja automáticamente.
