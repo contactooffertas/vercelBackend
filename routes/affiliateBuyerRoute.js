@@ -6,6 +6,7 @@ const {
   getAvailableOffers,
   applyToOffer,
   listMyApplications,
+  getEarningsSummary,
   getProfile,
   updateProfile,
   listMySales,
@@ -14,10 +15,12 @@ const {
 router.get('/offers', authMiddleware, getAvailableOffers);
 router.post('/offers/:offerId/apply', authMiddleware, applyToOffer);
 router.get('/mis-ofertas', authMiddleware, listMyApplications);
+router.get('/resumen', authMiddleware, getEarningsSummary);
 router.get('/mis-ventas', authMiddleware, listMySales);
 router.get('/perfil', authMiddleware, getProfile);
 router.patch('/perfil', authMiddleware, updateProfile);
 
 module.exports = router;
+
 // En index.js agregar:
 // app.use('/api/affiliates/buyer', require('./routes/affiliateBuyerRoute'));
