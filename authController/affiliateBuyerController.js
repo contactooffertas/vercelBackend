@@ -22,10 +22,6 @@ function getBuyerId(req) {
   return req.user.id || req.user._id;
 }
 
-// Antes apuntaba a /tienda/:sellerId/producto/:productId, ruta inexistente
-// en el frontend (y con el User id del vendedor en vez del Business id).
-// Ahora reutiliza /p/:id, que ya resuelve el businessId correcto desde el
-// producto y ya tiene el sistema de OG cards para WhatsApp/Telegram.
 function buildAffiliateLink(sellerId, productId, affiliateCode) {
   return `${BACKEND_URL}/p/${productId}?ref=${affiliateCode}`;
 }
@@ -48,8 +44,6 @@ function daysBetween(from, to) {
 
 /**
  * GET /api/affiliates/buyer/offers
- * query: page (def 1), limit (def 5, max 20), search
- * Lista, de a 5 en 5, las ofertas activas de todos los vendedores.
  */
 exports.getAvailableOffers = async (req, res) => {
   try {
@@ -179,9 +173,6 @@ exports.applyToOffer = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/mis-ofertas
- * query: status (def 'pending'), page, limit (def 5)
- * Trae, de a 5 por vez, las solicitudes/afiliaciones del comprador, con el
- * monto total vendido (no solo la cantidad) para que se vea claro.
  */
 exports.listMyApplications = async (req, res) => {
   try {
@@ -262,10 +253,6 @@ exports.listMyApplications = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/resumen
- * Cuánto lleva ganado el afiliado en total, cuánto tiene pendiente de
- * cobro y el detalle de cada venta pendiente con su vencimiento (30 días
- * desde la fecha de esa venta puntual). Las que vencen en 5 días o menos
- * van también en "urgentSales" para disparar el aviso en el frontend.
  */
 exports.getEarningsSummary = async (req, res) => {
   try {
@@ -307,6 +294,7 @@ exports.getEarningsSummary = async (req, res) => {
         unitPrice: sale.unitPrice,
         totalAmount: sale.quantity * sale.unitPrice,
         commissionAmount: sale.commissionAmount,
+        rejected: sale.rejected,
       };
       pendingSales.push(item);
       if (daysRemaining <= 5) urgentSales.push(item);
@@ -349,9 +337,6 @@ exports.getProfile = async (req, res) => {
 
 /**
  * PATCH /api/affiliates/buyer/perfil
- * body: { firstName?, lastName?, email?, phone?, city?, province?, socialMedia?, salesExperience? }
- * El comprador edita sus propios datos (ej. corregir un teléfono mal cargado).
- * Solo actualiza los campos que vienen en el body; el resto queda igual.
  */
 exports.updateProfile = async (req, res) => {
   try {
@@ -425,10 +410,6 @@ exports.updateProfile = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/mis-ventas
- * query: page, limit (def 5), applicationId? (para filtrar por una sola afiliación)
- * Detalle de las ventas que generó el afiliado: qué producto, a qué vendedor,
- * cuánto vendió y cuánta comisión le corresponde por cada una, más un total
- * acumulado de comisión y cantidad.
  */
 exports.listMySales = async (req, res) => {
   try {
@@ -464,6 +445,9 @@ exports.listMySales = async (req, res) => {
       dueDate: s.dueDate,
       paid: s.paid,
       paidAt: s.paidAt,
+      rejected: s.rejected,
+      rejectedAt: s.rejectedAt,
+      rejectionReason: s.rejectionReason,
       productName: s.productName,
       quantity: s.quantity,
       unitPrice: s.unitPrice,
@@ -501,5 +485,40 @@ exports.listMySales = async (req, res) => {
   } catch (err) {
     console.error('[affiliateBuyerController.listMySales]', err);
     return res.status(500).json({ message: 'Error al obtener tus ventas' });
+  }
+};
+
+exports.rejectPayment = async (req, res) => {
+  try {
+    if (!isBuyer(req)) return res.status(403).json({ message: 'Solo los compradores pueden acceder' });
+
+    const buyerId = getBuyerId(req);
+    const { saleId } = req.params;
+    const { reason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(saleId)) {
+      return res.status(400).json({ message: 'Venta inválida' });
+    }
+
+    const sale = await AffiliateSale.findOne({ _id: saleId, affiliate: buyerId });
+    if (!sale) return res.status(404).json({ message: 'Venta no encontrada' });
+
+    if (sale.paid) {
+      return res.status(400).json({ message: 'No podés rechazar una venta que ya fue pagada' });
+    }
+
+    if (sale.rejected) {
+      return res.status(200).json({ message: 'Esta venta ya estaba marcada como rechazada', sale });
+    }
+
+    sale.rejected = true;
+    sale.rejectedAt = new Date();
+    if (reason !== undefined) sale.rejectionReason = String(reason).trim();
+    await sale.save();
+
+    return res.status(200).json({ message: 'Venta marcada como rechazada correctamente', sale });
+  } catch (err) {
+    console.error('[affiliateBuyerController.rejectPayment]', err);
+    return res.status(500).json({ message: 'Error al rechazar el pago de la venta' });
   }
 };
