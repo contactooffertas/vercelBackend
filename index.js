@@ -21,6 +21,8 @@ const eliminaUsuarioRoutes = require('./routes/eliminarUsuarioRoute');
 const shareRoutes          = require('./routes/shareRoute'); 
 const trackingRoutes = require('./routes/trackingRoutes');
 const affiliateRoutes = require('./routes/affiliateRoute')
+const affiliateBuyerRoutes = require('./routes/affiliateBuyerRoute');
+const affiliateSellerRoutes = require('./routes/affiliateSellerRoute');
 
 const { router: pushRoutes } = require('./routes/pushRoute');
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,7 +80,9 @@ app.use('/api/announcements',   announcementRoutes);
 app.use('/api/terminos',        terminosRoutes);
 app.use('/api/elimina-usuario', eliminaUsuarioRoutes);
 app.use('/api/tracking', trackingRoutes);
-app.use('/api/affiliates', affiliateRoutes); 
+app.use('/api/affiliates', affiliateRoutes);
+app.use('/api/affiliates/buyer', affiliateBuyerRoutes);
+app.use('/api/affiliates/seller', affiliateSellerRoutes);
 
 
 
