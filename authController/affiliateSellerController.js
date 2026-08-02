@@ -16,6 +16,7 @@ const AffiliateOffer = require('../models/AffiliateOffer');
 const AffiliateOfferApplication = require('../models/AffiliateOfferApplication');
 const AffiliateSellerApplication = require('../models/AffiliateSellerApplication');
 const AffiliateBuyerApplication = require('../models/AffiliateBuyerApplication');
+const AffiliateSale = require('../models/AffiliateSale');
 const generateAffiliateCode = require('../utils/generateAffiliateCode');
 const sendEmail = require('../utils/sendMail');
 
@@ -520,5 +521,181 @@ exports.listMyAffiliates = async (req, res) => {
   } catch (err) {
     console.error('[affiliateSellerController.listMyAffiliates]', err);
     return res.status(500).json({ message: 'Error al obtener tus afiliados' });
+  }
+};
+
+/**
+ * GET /api/affiliates/seller/perfil
+ * Devuelve el perfil del vendedor afiliado (para precargar el form de edición).
+ */
+exports.getProfile = async (req, res) => {
+  try {
+    if (!isSeller(req)) return res.status(403).json({ message: 'Solo los vendedores pueden acceder' });
+
+    const sellerId = getSellerId(req);
+    const profile = await AffiliateSellerApplication.findOne({ user: sellerId }).lean();
+    if (!profile) return res.status(404).json({ message: 'No tenés un perfil de vendedor afiliado cargado' });
+
+    return res.status(200).json({ profile });
+  } catch (err) {
+    console.error('[affiliateSellerController.getProfile]', err);
+    return res.status(500).json({ message: 'Error al obtener el perfil' });
+  }
+};
+
+/**
+ * PATCH /api/affiliates/seller/perfil
+ * body: { businessName?, contactName?, email?, phone?, description?, defaultPercentage?, maxAffiliates? }
+ * El vendedor edita sus propios datos (ej. corregir un teléfono mal cargado).
+ * Solo actualiza los campos que vienen en el body; el resto queda igual.
+ */
+exports.updateProfile = async (req, res) => {
+  try {
+    if (!isSeller(req)) return res.status(403).json({ message: 'Solo los vendedores pueden acceder' });
+
+    const sellerId = getSellerId(req);
+    const {
+      businessName,
+      contactName,
+      email,
+      phone,
+      description,
+      defaultPercentage,
+      maxAffiliates,
+    } = req.body;
+
+    const update = {};
+
+    if (businessName !== undefined) {
+      const value = String(businessName).trim();
+      if (!value) return res.status(400).json({ message: 'El nombre del negocio no puede estar vacío' });
+      update.businessName = value;
+    }
+    if (contactName !== undefined) {
+      const value = String(contactName).trim();
+      if (!value) return res.status(400).json({ message: 'El nombre de contacto no puede estar vacío' });
+      update.contactName = value;
+    }
+    if (email !== undefined) {
+      const value = String(email).trim();
+      if (!value) return res.status(400).json({ message: 'El email no puede estar vacío' });
+      update.email = value.toLowerCase();
+    }
+    if (phone !== undefined) {
+      const value = String(phone).trim();
+      if (!value) return res.status(400).json({ message: 'El teléfono no puede estar vacío' });
+      update.phone = value;
+    }
+    if (description !== undefined) {
+      const value = String(description).trim();
+      if (!value) return res.status(400).json({ message: 'La descripción no puede estar vacía' });
+      update.description = value;
+    }
+    if (defaultPercentage !== undefined) {
+      const pct = Number(defaultPercentage);
+      if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+        return res.status(400).json({ message: 'El porcentaje por defecto debe estar entre 0 y 100' });
+      }
+      update.defaultPercentage = pct;
+    }
+    if (maxAffiliates !== undefined) {
+      const max = Number(maxAffiliates);
+      if (Number.isNaN(max) || max < 1) {
+        return res.status(400).json({ message: 'El máximo de afiliados debe ser al menos 1' });
+      }
+      update.maxAffiliates = max;
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: 'No se envió ningún dato para actualizar' });
+    }
+
+    const profile = await AffiliateSellerApplication.findOneAndUpdate(
+      { user: sellerId },
+      update,
+      { new: true, runValidators: true }
+    );
+    if (!profile) return res.status(404).json({ message: 'No tenés un perfil de vendedor afiliado cargado' });
+
+    return res.status(200).json({ message: 'Perfil actualizado correctamente', profile });
+  } catch (err) {
+    console.error('[affiliateSellerController.updateProfile]', err);
+    return res.status(500).json({ message: 'Error al actualizar el perfil' });
+  }
+};
+
+/**
+ * GET /api/affiliates/seller/offers/:offerId/sales
+ * query: page, limit (def 5)
+ * Detalle de ventas de un producto en oferta: qué se vendió, quién lo vendió
+ * (qué afiliado) y cuánta comisión corresponde por cada venta, más un total
+ * acumulado de comisión y cantidad para esa oferta.
+ */
+exports.listOfferSales = async (req, res) => {
+  try {
+    if (!isSeller(req)) return res.status(403).json({ message: 'Solo los vendedores pueden acceder' });
+
+    const sellerId = getSellerId(req);
+    const { offerId } = req.params;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 5));
+
+    const offer = await AffiliateOffer.findOne({ _id: offerId, seller: sellerId }).lean();
+    if (!offer) return res.status(404).json({ message: 'Oferta no encontrada' });
+
+    const filter = { offer: offerId, seller: sellerId };
+    const total = await AffiliateSale.countDocuments(filter);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+
+    const sales = await AffiliateSale.find(filter)
+      .sort({ date: -1 })
+      .skip((safePage - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    const affiliateIds = sales.map((s) => s.affiliate);
+    const buyerApplications = await AffiliateBuyerApplication.find({ user: { $in: affiliateIds } }).lean();
+    const buyerDataById = new Map(buyerApplications.map((b) => [String(b.user), b]));
+
+    const items = sales.map((s) => ({
+      saleId: s._id,
+      date: s.date,
+      productName: s.productName,
+      quantity: s.quantity,
+      unitPrice: s.unitPrice,
+      commissionPercentage: s.commissionPercentage,
+      commissionAmount: s.commissionAmount,
+      affiliate: mapBuyerData(buyerDataById.get(String(s.affiliate))),
+    }));
+
+    const totalsAgg = await AffiliateSale.aggregate([
+      {
+        $match: {
+          offer: new mongoose.Types.ObjectId(offerId),
+          seller: new mongoose.Types.ObjectId(sellerId),
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalCommission: { $sum: '$commissionAmount' },
+          totalQuantity: { $sum: '$quantity' },
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      items,
+      page: safePage,
+      totalPages,
+      total,
+      limit,
+      totalCommission: totalsAgg[0]?.totalCommission || 0,
+      totalQuantity: totalsAgg[0]?.totalQuantity || 0,
+    });
+  } catch (err) {
+    console.error('[affiliateSellerController.listOfferSales]', err);
+    return res.status(500).json({ message: 'Error al obtener las ventas' });
   }
 };
