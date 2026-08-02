@@ -656,8 +656,14 @@ function escapeHtml(str = "") {
     .replace(/'/g, "&#039;");
 }
 
+// GET /p/:id
+// GET /p/:id?ref=<affiliateCode>  ← cuando el link viene de un afiliado del
+// Programa de Afiliados. El código de afiliado se propaga al redirect final
+// (?ref=...) para que el frontend, al agregar el producto al carrito, sepa
+// avisarle al backend qué afiliado generó la venta.
 exports.getProductShareCard = async (req, res) => {
   const { id } = req.params;
+  const ref = req.query.ref ? String(req.query.ref).trim() : "";
 
   try {
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -685,8 +691,9 @@ exports.getProductShareCard = async (req, res) => {
       console.warn(`[getProductShareCard] producto ${id} sin negocio asociado`);
     }
 
+    const refQuery = ref ? `&ref=${encodeURIComponent(ref)}` : "";
     const targetUrl = bizId
-      ? `${FRONTEND_URL}/negocio/${bizId}?p=${product._id}`
+      ? `${FRONTEND_URL}/negocio/${bizId}?p=${product._id}${refQuery}`
       : FRONTEND_URL;
 
     const userAgent = req.headers["user-agent"] || "";
@@ -713,7 +720,7 @@ exports.getProductShareCard = async (req, res) => {
       ? product.description.slice(0, 160)
       : `Descubrí "${product.name}" en ${business?.name || "Offertas"}${business?.city ? ` · ${business.city}` : ""}. ¡Aprovechá esta oferta!`;
     const image = product.image || "https://via.placeholder.com/600x400?text=Producto";
-    const shareUrl = `${BACKEND_URL}/p/${product._id}`;
+    const shareUrl = `${BACKEND_URL}/p/${product._id}${ref ? `?ref=${encodeURIComponent(ref)}` : ""}`;
 
     const html = `<!DOCTYPE html>
 <html lang="es">
