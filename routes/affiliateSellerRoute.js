@@ -14,6 +14,8 @@ const {
   deleteApplication,
   rateApplication,
   listMyAffiliates,
+  getPayablesSummary,
+  markSaleAsPaid,
   getProfile,
   updateProfile,
   listOfferSales,
@@ -31,9 +33,12 @@ router.patch('/applications/:applicationId/status', authMiddleware, setApplicati
 router.delete('/applications/:applicationId', authMiddleware, deleteApplication);
 router.patch('/applications/:applicationId/rating', authMiddleware, rateApplication);
 router.get('/mis-afiliados', authMiddleware, listMyAffiliates);
+router.get('/resumen', authMiddleware, getPayablesSummary);
+router.patch('/sales/:saleId/pay', authMiddleware, markSaleAsPaid);
 router.get('/perfil', authMiddleware, getProfile);
 router.patch('/perfil', authMiddleware, updateProfile);
 
 module.exports = router;
+
 // En index.js agregar:
 // app.use('/api/affiliates/seller', require('./routes/affiliateSellerRoute'));
