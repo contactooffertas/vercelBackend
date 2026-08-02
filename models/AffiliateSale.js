@@ -1,14 +1,7 @@
 // models/AffiliateSale.js
 //
-// Registra cada venta generada por un afiliado (buyer) para un vendedor
-// (seller). El pago de la comisión vence 30 días después de la fecha de
-// ESA venta puntual (no del mes calendario): dueDate = date + 30 días.
-// Por eso una venta del 2/8 vence distinto que una del 15/8, aunque las
-// dos hayan ocurrido en agosto.
 const mongoose = require('mongoose');
-
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-
 const affiliateSaleSchema = new mongoose.Schema(
   {
     application: {
@@ -82,14 +75,28 @@ const affiliateSaleSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // El afiliado puede rechazar/objetar una venta no pagada (ej. pago
+    // que no le llegó, monto incorrecto, etc.).
+    rejected: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    rejectedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: '',
+    },
   },
   { timestamps: true }
 );
-
 affiliateSaleSchema.virtual('totalAmount').get(function getTotalAmount() {
   return this.quantity * this.unitPrice;
 });
-
 affiliateSaleSchema.pre('validate', function setDueDate(next) {
   if (!this.dueDate) {
     const base = this.date instanceof Date ? this.date : new Date();
@@ -97,8 +104,6 @@ affiliateSaleSchema.pre('validate', function setDueDate(next) {
   }
   next();
 });
-
 affiliateSaleSchema.set('toJSON', { virtuals: true });
 affiliateSaleSchema.set('toObject', { virtuals: true });
-
 module.exports = mongoose.model('AffiliateSale', affiliateSaleSchema);
