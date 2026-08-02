@@ -1,15 +1,5 @@
 // authController/affiliateSellerController.js
 //
-// Flujo de VENDEDOR del Programa de Afiliados.
-//
-// Usa el modelo real '../models/productoModel' (exporta como "Product").
-// El dueño del producto se guarda en el campo `user` (no `seller`), y la
-// imagen es un único String `image` (no hay array `images`).
-//
-// El chequeo de rol se hace en línea en cada handler (sin middleware
-// adicional), y la pertenencia (ownership) se valida siempre filtrando
-// por `user: sellerId` en cada query de producto.
-
 const mongoose = require('mongoose');
 const Product = require('../models/productoModel');
 const AffiliateOffer = require('../models/AffiliateOffer');
@@ -59,6 +49,10 @@ function mapBuyerData(buyerDoc) {
     socialMedia: buyerDoc.socialMedia,
     salesExperience: buyerDoc.salesExperience,
   };
+}
+
+function daysBetween(from, to) {
+  return Math.ceil((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
 }
 
 /**
@@ -470,7 +464,8 @@ exports.rateApplication = async (req, res) => {
 /**
  * GET /api/affiliates/seller/mis-afiliados
  * query: page, limit (def 5)
- * Afiliados aceptados/bloqueados, de a 5 por vez, con ventas, antigüedad y link.
+ * Afiliados aceptados/bloqueados, de a 5 por vez, con el monto vendido
+ * (no solo la cantidad), antigüedad y link.
  */
 exports.listMyAffiliates = async (req, res) => {
   try {
@@ -500,13 +495,33 @@ exports.listMyAffiliates = async (req, res) => {
     const products = await Product.find({ _id: { $in: productIds } }).select('name').lean();
     const productNameById = new Map(products.map((p) => [String(p._id), p.name]));
 
+    const appIds = applications.map((a) => a._id);
+    const salesAgg = await AffiliateSale.aggregate([
+      { $match: { application: { $in: appIds } } },
+      {
+        $group: {
+          _id: '$application',
+          totalSalesAmount: { $sum: { $multiply: ['$quantity', '$unitPrice'] } },
+          totalCommissionOwed: { $sum: '$commissionAmount' },
+          totalCommissionPending: {
+            $sum: { $cond: [{ $eq: ['$paid', false] }, '$commissionAmount', 0] },
+          },
+        },
+      },
+    ]);
+    const salesByApp = new Map(salesAgg.map((s) => [String(s._id), s]));
+
     const items = applications.map((a) => {
       const productId = a.offer?.product ? String(a.offer.product) : null;
+      const salesSummary = salesByApp.get(String(a._id));
       return {
         applicationId: a._id,
         status: a.status,
         rating: a.rating,
         salesCount: a.salesCount,
+        totalSalesAmount: salesSummary?.totalSalesAmount || 0,
+        totalCommissionOwed: salesSummary?.totalCommissionOwed || 0,
+        totalCommissionPending: salesSummary?.totalCommissionPending || 0,
         affiliatedSince: a.decidedAt,
         affiliateLink:
           a.affiliateCode && a.offer?.product
@@ -521,6 +536,109 @@ exports.listMyAffiliates = async (req, res) => {
   } catch (err) {
     console.error('[affiliateSellerController.listMyAffiliates]', err);
     return res.status(500).json({ message: 'Error al obtener tus afiliados' });
+  }
+};
+
+/**
+ * GET /api/affiliates/seller/resumen
+ * Cuánto tiene que pagarles el vendedor a sus afiliados en total, agrupado
+ * por afiliado, con el detalle de cada venta pendiente y su vencimiento
+ * (30 días desde la fecha de esa venta puntual). Las que vencen en 5 días
+ * o menos van también en "urgentSales" para disparar el aviso en el frontend.
+ */
+exports.getPayablesSummary = async (req, res) => {
+  try {
+    if (!isSeller(req)) return res.status(403).json({ message: 'Solo los vendedores pueden acceder' });
+
+    const sellerId = getSellerId(req);
+    const now = new Date();
+
+    const sales = await AffiliateSale.find({ seller: sellerId }).sort({ date: -1 }).lean();
+
+    const buyerIds = [...new Set(sales.map((s) => String(s.affiliate)))];
+    const buyerApplications = await AffiliateBuyerApplication.find({ user: { $in: buyerIds } }).lean();
+    const buyerDataById = new Map(buyerApplications.map((b) => [String(b.user), b]));
+
+    let totalToPay = 0;
+    let totalPaidHistoric = 0;
+    const pendingSales = [];
+    const urgentSales = [];
+    const byAffiliateMap = new Map();
+
+    for (const sale of sales) {
+      if (sale.paid) {
+        totalPaidHistoric += sale.commissionAmount;
+        continue;
+      }
+
+      totalToPay += sale.commissionAmount;
+      const daysRemaining = daysBetween(now, new Date(sale.dueDate));
+      const buyerData = mapBuyerData(buyerDataById.get(String(sale.affiliate)));
+      const item = {
+        saleId: sale._id,
+        productName: sale.productName,
+        affiliate: buyerData,
+        date: sale.date,
+        dueDate: sale.dueDate,
+        daysRemaining,
+        quantity: sale.quantity,
+        unitPrice: sale.unitPrice,
+        totalAmount: sale.quantity * sale.unitPrice,
+        commissionAmount: sale.commissionAmount,
+      };
+      pendingSales.push(item);
+      if (daysRemaining <= 5) urgentSales.push(item);
+
+      const key = String(sale.affiliate);
+      const entry = byAffiliateMap.get(key) || { affiliate: buyerData, totalPending: 0, sales: [] };
+      entry.totalPending += sale.commissionAmount;
+      entry.sales.push(item);
+      byAffiliateMap.set(key, entry);
+    }
+
+    pendingSales.sort((a, b) => a.daysRemaining - b.daysRemaining);
+    urgentSales.sort((a, b) => a.daysRemaining - b.daysRemaining);
+    const byAffiliate = Array.from(byAffiliateMap.values()).sort((a, b) => b.totalPending - a.totalPending);
+
+    return res.status(200).json({
+      totalToPay,
+      totalPaidHistoric,
+      pendingSales,
+      urgentSales,
+      byAffiliate,
+    });
+  } catch (err) {
+    console.error('[affiliateSellerController.getPayablesSummary]', err);
+    return res.status(500).json({ message: 'Error al obtener el resumen de pagos' });
+  }
+};
+
+/**
+ * PATCH /api/affiliates/seller/sales/:saleId/pay
+ * El vendedor marca una venta puntual como pagada al afiliado.
+ */
+exports.markSaleAsPaid = async (req, res) => {
+  try {
+    if (!isSeller(req)) return res.status(403).json({ message: 'Solo los vendedores pueden acceder' });
+
+    const sellerId = getSellerId(req);
+    const { saleId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(saleId)) {
+      return res.status(400).json({ message: 'Venta inválida' });
+    }
+
+    const sale = await AffiliateSale.findOneAndUpdate(
+      { _id: saleId, seller: sellerId, paid: false },
+      { paid: true, paidAt: new Date() },
+      { new: true }
+    );
+    if (!sale) return res.status(404).json({ message: 'Venta no encontrada o ya estaba pagada' });
+
+    return res.status(200).json({ message: 'Venta marcada como pagada', sale });
+  } catch (err) {
+    console.error('[affiliateSellerController.markSaleAsPaid]', err);
+    return res.status(500).json({ message: 'Error al marcar la venta como pagada' });
   }
 };
 
@@ -661,9 +779,12 @@ exports.listOfferSales = async (req, res) => {
     const items = sales.map((s) => ({
       saleId: s._id,
       date: s.date,
+      dueDate: s.dueDate,
+      paid: s.paid,
       productName: s.productName,
       quantity: s.quantity,
       unitPrice: s.unitPrice,
+      totalAmount: s.quantity * s.unitPrice,
       commissionPercentage: s.commissionPercentage,
       commissionAmount: s.commissionAmount,
       affiliate: mapBuyerData(buyerDataById.get(String(s.affiliate))),
@@ -681,6 +802,7 @@ exports.listOfferSales = async (req, res) => {
           _id: null,
           totalCommission: { $sum: '$commissionAmount' },
           totalQuantity: { $sum: '$quantity' },
+          totalAmount: { $sum: { $multiply: ['$quantity', '$unitPrice'] } },
         },
       },
     ]);
@@ -693,6 +815,7 @@ exports.listOfferSales = async (req, res) => {
       limit,
       totalCommission: totalsAgg[0]?.totalCommission || 0,
       totalQuantity: totalsAgg[0]?.totalQuantity || 0,
+      totalAmount: totalsAgg[0]?.totalAmount || 0,
     });
   } catch (err) {
     console.error('[affiliateSellerController.listOfferSales]', err);
