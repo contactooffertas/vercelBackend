@@ -16,6 +16,7 @@ const {
   listMyAffiliates,
   getPayablesSummary,
   markSaleAsPaid,
+  updateSaleProof,
   getProfile,
   updateProfile,
   listOfferSales,
@@ -35,6 +36,7 @@ router.patch('/applications/:applicationId/rating', authMiddleware, rateApplicat
 router.get('/mis-afiliados', authMiddleware, listMyAffiliates);
 router.get('/resumen', authMiddleware, getPayablesSummary);
 router.patch('/sales/:saleId/pay', authMiddleware, markSaleAsPaid);
+router.patch('/sales/:saleId/proof', authMiddleware, updateSaleProof);
 router.get('/perfil', authMiddleware, getProfile);
 router.patch('/perfil', authMiddleware, updateProfile);
 
