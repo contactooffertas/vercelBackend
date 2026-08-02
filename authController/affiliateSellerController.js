@@ -21,6 +21,7 @@ const sendEmail = require('../utils/sendMail');
 
 // Ajustar si la ruta pública de tienda/producto es otra.
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://mercadorosario.com';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://new-backend-lovat.vercel.app';
 
 function isSeller(req) {
   return !!req.user && req.user.role === 'seller';
@@ -34,8 +35,14 @@ async function getActiveSellerProgram(userId) {
   return AffiliateSellerApplication.findOne({ user: userId, status: 'active' });
 }
 
+// Antes apuntaba a /tienda/:sellerId/producto/:productId, una ruta que no
+// existe en el frontend (y sellerId era el User id, no el Business id que
+// espera /negocio/[id]). Ahora reutilizamos el endpoint /p/:id que YA
+// resuelve el businessId correcto desde el producto y ya tiene el sistema
+// de OG cards para WhatsApp/Telegram. Solo le sumamos ?ref= con el código
+// de afiliado, que getProductShareCard propaga al redirect final.
 function buildAffiliateLink(sellerId, productId, affiliateCode) {
-  return `${FRONTEND_URL}/tienda/${sellerId}/producto/${productId}?ref=${affiliateCode}`;
+  return `${BACKEND_URL}/p/${productId}?ref=${affiliateCode}`;
 }
 
 function mapBuyerData(buyerDoc) {
