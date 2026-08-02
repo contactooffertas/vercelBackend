@@ -1,15 +1,13 @@
 // models/AffiliateSale.js
 //
-// Registro detallado de cada venta generada por un afiliado del Programa
-// de Afiliados. Antes solo se incrementaba un contador (`salesCount`) en
-// AffiliateOfferApplication, sin guardar qué producto, a qué precio, ni
-// cuánta comisión correspondía. Este modelo guarda un snapshot completo
-// de cada venta puntual para que tanto el vendedor como el afiliado
-// puedan controlar el detalle (no solo un número acumulado).
-//
-// Se crea en routes/cart.js dentro del checkout, una vez por cada item
-// del carrito que llegó con un affiliateCode válido.
+// Registra cada venta generada por un afiliado (buyer) para un vendedor
+// (seller). El pago de la comisión vence 30 días después de la fecha de
+// ESA venta puntual (no del mes calendario): dueDate = date + 30 días.
+// Por eso una venta del 2/8 vence distinto que una del 15/8, aunque las
+// dos hayan ocurrido en agosto.
 const mongoose = require('mongoose');
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 const affiliateSaleSchema = new mongoose.Schema(
   {
@@ -31,56 +29,33 @@ const affiliateSaleSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    // El comprador (afiliado) que generó la venta con su link.
     affiliate: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
       index: true,
     },
-    // El cliente final que efectivamente compró el producto.
-    customer: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    order: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Order',
-      required: true,
-      index: true,
-    },
-    product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
-      required: true,
-    },
-    // Snapshot del nombre, por si el producto se borra o cambia después.
     productName: {
       type: String,
       required: true,
+      trim: true,
     },
     quantity: {
       type: Number,
       required: true,
       min: 1,
     },
-    // Precio unitario efectivamente cobrado (ya con flash/descuento si aplicaba).
     unitPrice: {
       type: Number,
       required: true,
       min: 0,
     },
-    // Snapshot del % de comisión al momento de la venta (por si el vendedor
-    // lo cambia después, la venta ya facturada no debe recalcularse).
     commissionPercentage: {
       type: Number,
       required: true,
       min: 0,
       max: 100,
     },
-    // unitPrice * quantity * (commissionPercentage / 100), calculado una
-    // sola vez al crear el registro.
     commissionAmount: {
       type: Number,
       required: true,
@@ -88,13 +63,42 @@ const affiliateSaleSchema = new mongoose.Schema(
     },
     date: {
       type: Date,
+      required: true,
       default: Date.now,
+    },
+    // Se completa solo en el pre-validate si no vino seteada.
+    dueDate: {
+      type: Date,
+      required: true,
+      index: true,
+    },
+    // El vendedor le paga la comisión al afiliado; esto marca ese pago.
+    paid: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    paidAt: {
+      type: Date,
+      default: null,
     },
   },
   { timestamps: true }
 );
 
-affiliateSaleSchema.index({ affiliate: 1, date: -1 });
-affiliateSaleSchema.index({ offer: 1, date: -1 });
+affiliateSaleSchema.virtual('totalAmount').get(function getTotalAmount() {
+  return this.quantity * this.unitPrice;
+});
+
+affiliateSaleSchema.pre('validate', function setDueDate(next) {
+  if (!this.dueDate) {
+    const base = this.date instanceof Date ? this.date : new Date();
+    this.dueDate = new Date(base.getTime() + THIRTY_DAYS_MS);
+  }
+  next();
+});
+
+affiliateSaleSchema.set('toJSON', { virtuals: true });
+affiliateSaleSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('AffiliateSale', affiliateSaleSchema);
