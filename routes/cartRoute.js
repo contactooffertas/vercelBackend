@@ -4,6 +4,8 @@ const router = express.Router();
 const Cart = require("../models/cartModel");
 const Product = require("../models/productoModel");
 const auth = require("../middleware/authMiddleware");
+const AffiliateOffer = require("../models/AffiliateOffer");
+const AffiliateOfferApplication = require("../models/AffiliateOfferApplication");
 
 const PRODUCT_POPULATE = {
   path: "items.product",
@@ -32,8 +34,29 @@ function formatItems(cartItems) {
       businessId: i.product.businessId?._id || i.product.businessId || null,
       businessName: i.product.businessId?.name || null,
       businessPhone: i.product.businessId?.phone || "",
+      affiliateCode: i.affiliateCode || null,
     };
   }).filter(Boolean);
+}
+
+// Valida que el código de afiliado corresponda a una afiliación ACEPTADA
+// para ese producto puntual. Si no es válido (vencido, inventado, oferta
+// desactivada, etc.) devuelve null y el item se agrega como venta normal,
+// sin acreditarle nada a nadie.
+async function resolveAffiliateCode(productId, affiliateCode) {
+  if (!affiliateCode) return null;
+  try {
+    const offer = await AffiliateOffer.findOne({ product: productId, active: true }).select("_id").lean();
+    if (!offer) return null;
+    const application = await AffiliateOfferApplication.findOne({
+      offer: offer._id,
+      affiliateCode,
+      status: "accepted",
+    }).select("_id").lean();
+    return application ? affiliateCode : null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── GET /api/cart ─────────────────────────────────────────────────────────
@@ -50,7 +73,7 @@ router.get("/", auth, async (req, res) => {
 // ─── POST /api/cart/add ───────────────────────────────────────────────────
 router.post("/add", auth, async (req, res) => {
   try {
-    const { productId, quantity = 1 } = req.body;
+    const { productId, quantity = 1, affiliateCode } = req.body;
 
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ message: "Producto no encontrado" });
@@ -81,6 +104,10 @@ router.post("/add", auth, async (req, res) => {
       finalIsFlash = false;
     }
 
+    // Programa de Afiliados: validamos el ?ref= contra una afiliación
+    // aceptada para este producto puntual antes de confiar en él.
+    const validAffiliateCode = await resolveAffiliateCode(productId, affiliateCode);
+
     const existingIndex = cart.items.findIndex(i => i.product.toString() === productId);
 
     if (existingIndex > -1) {
@@ -90,6 +117,9 @@ router.post("/add", auth, async (req, res) => {
       cart.items[existingIndex].originalPrice = finalOriginalPrice;
       cart.items[existingIndex].discount = finalDiscount;
       cart.items[existingIndex].isFlashOffer = finalIsFlash;
+      // Si esta vez vino con un ref válido, lo actualizamos (última visita manda).
+      // Si no vino ref pero ya tenía uno guardado, lo conservamos.
+      if (validAffiliateCode) cart.items[existingIndex].affiliateCode = validAffiliateCode;
     } else {
       cart.items.push({
         product: productId,
@@ -97,7 +127,8 @@ router.post("/add", auth, async (req, res) => {
         price: finalPrice,
         originalPrice: finalOriginalPrice,
         discount: finalDiscount,
-        isFlashOffer: finalIsFlash
+        isFlashOffer: finalIsFlash,
+        affiliateCode: validAffiliateCode,
       });
     }
 
@@ -223,6 +254,7 @@ router.post("/checkout", auth, async (req, res) => {
         name: i.product.name,
         price: unitPrice,
         quantity: i.quantity,
+        affiliateCode: i.affiliateCode || null,
       });
       groupsByBusiness[bizId].total += unitPrice * i.quantity;
     }
@@ -245,6 +277,26 @@ router.post("/checkout", auth, async (req, res) => {
       orders.push(order);
       if (io && group.businessOwner) {
         io.to(`user_${group.businessOwner}`).emit("newOrder", { orderId: order._id });
+      }
+    }
+
+    // ── Programa de Afiliados: acreditar la venta ──────────────────────────
+    // Por cada item que llegó con un affiliateCode válido, sumamos la venta
+    // a esa afiliación (salesCount). No tocamos comisiones/pagos acá: eso
+    // lo maneja el vendedor manualmente fuera de la plataforma, tal como
+    // ya está aclarado en la sección "Cómo funciona" del programa.
+    for (const group of Object.values(groupsByBusiness)) {
+      for (const item of group.items) {
+        if (item.affiliateCode) {
+          try {
+            await AffiliateOfferApplication.findOneAndUpdate(
+              { affiliateCode: item.affiliateCode, status: "accepted" },
+              { $inc: { salesCount: item.quantity } }
+            );
+          } catch (affErr) {
+            console.error("[cart/checkout] Error acreditando venta a afiliado:", affErr.message);
+          }
+        }
       }
     }
 
