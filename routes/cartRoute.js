@@ -17,10 +17,21 @@ const PRODUCT_POPULATE = {
   },
 };
 
+// Precio final que paga el comprador por un item del carrito, aplicando
+// descuento normal o precio flash. Esta es la MISMA lógica que usa el
+// frontend (panel.tsx -> getFinalPrice) para mostrar el carrito. Se usa
+// tanto para mostrar el carrito como para calcular el total de la orden
+// en el checkout, así los dos números SIEMPRE coinciden.
+function getFinalUnitPrice(item) {
+  if (item.isFlashOffer) return item.price;
+  if (item.discount) return item.price * (1 - item.discount / 100);
+  return item.price;
+}
+
 function formatItems(cartItems) {
   return cartItems.map(i => {
     // Si el item no tiene product populado (borrado) lo salteamos
-    if (!i.product ||!i.product._id) return null;
+    if (!i.product || !i.product._id) return null;
     return {
       _id: i._id,
       productId: i.product._id,
@@ -82,10 +93,9 @@ router.post("/add", auth, async (req, res) => {
     let cart = await Cart.findOne({ user: req.user.id });
     if (!cart) cart = new Cart({ user: req.user.id, items: [] });
 
-    // ── ACA ESTA EL FIX ──
     // Si el producto tiene flashOffer activa, esa manda SIEMPRE
     const hasFlash = product.flashOffer && product.flashOffer.active === true;
-    const basePrice = product.originalPrice || product.price; // 65000 en tu ejemplo
+    const basePrice = product.originalPrice || product.price;
 
     let finalPrice;
     let finalOriginalPrice;
@@ -93,15 +103,18 @@ router.post("/add", auth, async (req, res) => {
     let finalIsFlash;
 
     if (hasFlash) {
-      finalOriginalPrice = basePrice; // 65000
-      finalDiscount = product.flashOffer.discount; // 20
-      finalPrice = basePrice * (1 - finalDiscount / 100); // 65000 * 0.8 = 52000
+      finalOriginalPrice = basePrice;
+      finalDiscount = product.flashOffer.discount;
+      finalPrice = basePrice * (1 - finalDiscount / 100);
       finalIsFlash = true;
     } else {
-      // Precio normal
+      // Precio normal: guardamos el precio BASE + el % de descuento por
+      // separado. El precio final con descuento se calcula siempre con
+      // getFinalUnitPrice(), tanto para mostrar el carrito como para
+      // armar la orden en el checkout.
       finalOriginalPrice = product.originalPrice || product.price;
       finalDiscount = product.discount || 0;
-      finalPrice = product.price; // 61750 (tu precio ya con 5%)
+      finalPrice = product.price;
       finalIsFlash = false;
     }
 
@@ -112,7 +125,7 @@ router.post("/add", auth, async (req, res) => {
     const existingIndex = cart.items.findIndex(i => i.product.toString() === productId);
 
     if (existingIndex > -1) {
-      // Si ya existe, actualizamos cantidad Y PISAMOS EL PRECIO con el nuevo (52k)
+      // Si ya existe, actualizamos cantidad Y PISAMOS EL PRECIO con el nuevo
       cart.items[existingIndex].quantity = Math.min(product.stock || 99, cart.items[existingIndex].quantity + quantity);
       cart.items[existingIndex].price = finalPrice;
       cart.items[existingIndex].originalPrice = finalOriginalPrice;
@@ -174,7 +187,7 @@ router.delete("/remove/:productId", auth, async (req, res) => {
     const cart = await Cart.findOne({ user: req.user.id });
     if (!cart) return res.status(404).json({ message: "Carrito no encontrado" });
 
-    cart.items = cart.items.filter(i => i.product.toString()!== req.params.productId);
+    cart.items = cart.items.filter(i => i.product.toString() !== req.params.productId);
     cart.updatedAt = new Date();
     await cart.save();
     await cart.populate(PRODUCT_POPULATE);
@@ -247,8 +260,12 @@ router.post("/checkout", auth, async (req, res) => {
         };
       }
 
-      // ACA USAMOS EL PRECIO GUARDADO (52000), NO RECALCULAMOS
-      const unitPrice = i.price;
+      // ACA ESTA EL FIX: aplicamos el descuento (o precio flash) al
+      // precio unitario, igual que hace el frontend con getFinalPrice().
+      // Antes se usaba i.price "a secas", que es el precio BASE sin
+      // descontar, y por eso la orden quedaba con el precio de $65 en
+      // vez del $61 que se veía en el carrito.
+      const unitPrice = getFinalUnitPrice(i);
 
       groupsByBusiness[bizId].items.push({
         product: i.product._id,
