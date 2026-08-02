@@ -6,6 +6,7 @@ const Product = require("../models/productoModel");
 const auth = require("../middleware/authMiddleware");
 const AffiliateOffer = require("../models/AffiliateOffer");
 const AffiliateOfferApplication = require("../models/AffiliateOfferApplication");
+const AffiliateSale = require("../models/AffiliateSale");
 
 const PRODUCT_POPULATE = {
   path: "items.product",
@@ -278,24 +279,46 @@ router.post("/checkout", auth, async (req, res) => {
       if (io && group.businessOwner) {
         io.to(`user_${group.businessOwner}`).emit("newOrder", { orderId: order._id });
       }
-    }
 
-    // ── Programa de Afiliados: acreditar la venta ──────────────────────────
-    // Por cada item que llegó con un affiliateCode válido, sumamos la venta
-    // a esa afiliación (salesCount). No tocamos comisiones/pagos acá: eso
-    // lo maneja el vendedor manualmente fuera de la plataforma, tal como
-    // ya está aclarado en la sección "Cómo funciona" del programa.
-    for (const group of Object.values(groupsByBusiness)) {
+      // ── Programa de Afiliados: acreditar la venta con detalle real ──────
+      // Por cada item que llegó con un affiliateCode válido: sumamos el
+      // contador legacy (salesCount, se sigue usando en otros lados de la
+      // UI) y además creamos un AffiliateSale con el producto, cantidad,
+      // precio y comisión exactos de ESA venta puntual, para que tanto el
+      // vendedor como el afiliado puedan ver el detalle y no solo un
+      // número acumulado.
       for (const item of group.items) {
-        if (item.affiliateCode) {
-          try {
-            await AffiliateOfferApplication.findOneAndUpdate(
-              { affiliateCode: item.affiliateCode, status: "accepted" },
-              { $inc: { salesCount: item.quantity } }
-            );
-          } catch (affErr) {
-            console.error("[cart/checkout] Error acreditando venta a afiliado:", affErr.message);
-          }
+        if (!item.affiliateCode) continue;
+        try {
+          const application = await AffiliateOfferApplication.findOneAndUpdate(
+            { affiliateCode: item.affiliateCode, status: "accepted" },
+            { $inc: { salesCount: item.quantity } },
+            { new: true }
+          );
+          if (!application) continue;
+
+          const offerDoc = await AffiliateOffer.findById(application.offer)
+            .select("commissionPercentage")
+            .lean();
+          const commissionPercentage = offerDoc?.commissionPercentage ?? 0;
+          const commissionAmount = item.price * item.quantity * (commissionPercentage / 100);
+
+          await AffiliateSale.create({
+            application: application._id,
+            offer: application.offer,
+            seller: application.seller,
+            affiliate: application.buyer,
+            customer: req.user.id,
+            order: order._id,
+            product: item.product,
+            productName: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            commissionPercentage,
+            commissionAmount,
+          });
+        } catch (affErr) {
+          console.error("[cart/checkout] Error acreditando venta a afiliado:", affErr.message);
         }
       }
     }
