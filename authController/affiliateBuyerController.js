@@ -17,6 +17,7 @@ const AffiliateTermsAcceptance = require('../models/AffiliateTermsAcceptance');
 const sendEmail = require('../utils/sendMail');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://mercadorosario.com';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://new-backend-lovat.vercel.app';
 const CURRENT_TERMS_VERSION = 1;
 
 function isBuyer(req) {
@@ -27,8 +28,12 @@ function getBuyerId(req) {
   return req.user.id || req.user._id;
 }
 
+// Antes apuntaba a /tienda/:sellerId/producto/:productId, ruta inexistente
+// en el frontend (y con el User id del vendedor en vez del Business id).
+// Ahora reutiliza /p/:id, que ya resuelve el businessId correcto desde el
+// producto y ya tiene el sistema de OG cards para WhatsApp/Telegram.
 function buildAffiliateLink(sellerId, productId, affiliateCode) {
-  return `${FRONTEND_URL}/tienda/${sellerId}/producto/${productId}?ref=${affiliateCode}`;
+  return `${BACKEND_URL}/p/${productId}?ref=${affiliateCode}`;
 }
 
 function mapSellerData(sellerApp) {
