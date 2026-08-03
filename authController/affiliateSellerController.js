@@ -10,8 +10,7 @@ const AffiliateSale = require('../models/AffiliateSale');
 const generateAffiliateCode = require('../utils/generateAffiliateCode');
 const sendEmail = require('../utils/sendMail');
 
-// Ajustar si la ruta pública de tienda/producto es otra.
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://mercadorosario.com';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://ofertas-lime-ten.vercel.app';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://new-backend-lovat.vercel.app';
 const DEFAULT_TERM_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -29,7 +28,7 @@ async function getActiveSellerProgram(userId) {
 }
 
 function buildAffiliateLink(sellerId, productId, affiliateCode) {
-  return `${BACKEND_URL}/p/${productId}?ref=${affiliateCode}`;
+  return `${FRONTEND_URL}/p/${productId}?ref=${affiliateCode}`;
 }
 
 function mapBuyerData(buyerDoc) {
