@@ -13,6 +13,8 @@ const sendEmail = require('../utils/sendMail');
 // Ajustar si la ruta pública de tienda/producto es otra.
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://mercadorosario.com';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://new-backend-lovat.vercel.app';
+const DEFAULT_TERM_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isSeller(req) {
   return !!req.user && req.user.role === 'seller';
@@ -26,12 +28,6 @@ async function getActiveSellerProgram(userId) {
   return AffiliateSellerApplication.findOne({ user: userId, status: 'active' });
 }
 
-// Antes apuntaba a /tienda/:sellerId/producto/:productId, una ruta que no
-// existe en el frontend (y sellerId era el User id, no el Business id que
-// espera /negocio/[id]). Ahora reutilizamos el endpoint /p/:id que YA
-// resuelve el businessId correcto desde el producto y ya tiene el sistema
-// de OG cards para WhatsApp/Telegram. Solo le sumamos ?ref= con el código
-// de afiliado, que getProductShareCard propaga al redirect final.
 function buildAffiliateLink(sellerId, productId, affiliateCode) {
   return `${BACKEND_URL}/p/${productId}?ref=${affiliateCode}`;
 }
@@ -52,14 +48,22 @@ function mapBuyerData(buyerDoc) {
 }
 
 function daysBetween(from, to) {
-  return Math.ceil((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
+  return Math.ceil((to.getTime() - from.getTime()) / DAY_MS);
+}
+
+// NUEVO: antes se mandaba sale.dueDate crudo, que podía venir null en
+// registros viejos (o generados antes de este fix) y el frontend terminaba
+// mostrando "-" o "null". Ahora, si no hay dueDate guardado, se calcula uno
+// en base a la fecha de la venta + 30 días por defecto, para que SIEMPRE
+// haya una fecha de vencimiento válida.
+function resolveDueDate(sale) {
+  if (sale.dueDate) return new Date(sale.dueDate);
+  const base = sale.date ? new Date(sale.date) : new Date(sale.createdAt || Date.now());
+  return new Date(base.getTime() + DEFAULT_TERM_DAYS * DAY_MS);
 }
 
 /**
  * GET /api/affiliates/seller/products
- * query: page (def 1), limit (def 5, max 20), search
- * Lista los productos del vendedor de a 5 (o el limit pedido) por vez,
- * indicando si cada uno ya está habilitado como oferta.
  */
 exports.getSellerProducts = async (req, res) => {
   try {
@@ -70,7 +74,6 @@ exports.getSellerProducts = async (req, res) => {
     const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 5));
     const search = (req.query.search || '').trim();
 
-    // Solo productos propios y no bloqueados por moderación pueden ser oferta.
     const filter = { user: sellerId, blocked: { $ne: true } };
     if (search) filter.name = { $regex: search, $options: 'i' };
 
@@ -115,8 +118,6 @@ exports.getSellerProducts = async (req, res) => {
 
 /**
  * POST /api/affiliates/seller/offers
- * body: { productId, commissionPercentage?, active? }
- * Crea o actualiza la oferta de afiliados para un producto propio.
  */
 exports.upsertOffer = async (req, res) => {
   try {
@@ -170,8 +171,6 @@ exports.upsertOffer = async (req, res) => {
 
 /**
  * PATCH /api/affiliates/seller/offers/:offerId/toggle
- * body: { active }
- * Activa/desactiva una oferta sin borrar las solicitudes asociadas.
  */
 exports.toggleOffer = async (req, res) => {
   try {
@@ -196,7 +195,6 @@ exports.toggleOffer = async (req, res) => {
 
 /**
  * GET /api/affiliates/seller/offers
- * Ofertas activas del vendedor, con cantidad de solicitudes pendientes/aceptadas.
  */
 exports.listOffers = async (req, res) => {
   try {
@@ -240,8 +238,6 @@ exports.listOffers = async (req, res) => {
 
 /**
  * GET /api/affiliates/seller/offers/:offerId/applications
- * query: status (def 'pending'), page, limit (def 5)
- * Trae, de a 5 por vez, quién aplicó a esa oferta puntual.
  */
 exports.listOfferApplications = async (req, res) => {
   try {
@@ -293,7 +289,6 @@ exports.listOfferApplications = async (req, res) => {
 
 /**
  * POST /api/affiliates/seller/applications/:applicationId/accept
- * Acepta al afiliado, genera su código/link único y le avisa por mail.
  */
 exports.acceptApplication = async (req, res) => {
   try {
@@ -338,7 +333,6 @@ exports.acceptApplication = async (req, res) => {
 
 /**
  * POST /api/affiliates/seller/applications/:applicationId/reject
- * Rechaza la solicitud y avisa por mail.
  */
 exports.rejectApplication = async (req, res) => {
   try {
@@ -377,8 +371,6 @@ exports.rejectApplication = async (req, res) => {
 
 /**
  * PATCH /api/affiliates/seller/applications/:applicationId/status
- * body: { status: 'accepted' | 'blocked' }
- * Bloquea/inhabilita o reactiva a un afiliado ya aceptado.
  */
 exports.setApplicationStatus = async (req, res) => {
   try {
@@ -408,7 +400,6 @@ exports.setApplicationStatus = async (req, res) => {
 
 /**
  * DELETE /api/affiliates/seller/applications/:applicationId
- * Elimina definitivamente la relación de afiliado.
  */
 exports.deleteApplication = async (req, res) => {
   try {
@@ -432,8 +423,6 @@ exports.deleteApplication = async (req, res) => {
 
 /**
  * PATCH /api/affiliates/seller/applications/:applicationId/rating
- * body: { rating: 0-5 }
- * Puntuación que el vendedor le pone al afiliado según sus ventas.
  */
 exports.rateApplication = async (req, res) => {
   try {
@@ -463,9 +452,6 @@ exports.rateApplication = async (req, res) => {
 
 /**
  * GET /api/affiliates/seller/mis-afiliados
- * query: page, limit (def 5)
- * Afiliados aceptados/bloqueados, de a 5 por vez, con el monto vendido
- * (no solo la cantidad), antigüedad y link.
  */
 exports.listMyAffiliates = async (req, res) => {
   try {
@@ -541,6 +527,8 @@ exports.listMyAffiliates = async (req, res) => {
 
 /**
  * GET /api/affiliates/seller/resumen
+ * FIX: usa resolveDueDate en vez de sale.dueDate crudo, así nunca llega
+ * null al frontend aunque la venta sea vieja o le falte el campo.
  */
 exports.getPayablesSummary = async (req, res) => {
   try {
@@ -582,14 +570,15 @@ exports.getPayablesSummary = async (req, res) => {
       }
 
       totalToPay += sale.commissionAmount;
-      const daysRemaining = daysBetween(now, new Date(sale.dueDate));
+      const dueDate = resolveDueDate(sale);
+      const daysRemaining = daysBetween(now, dueDate);
       const buyerData = mapBuyerData(buyerDataById.get(String(sale.affiliate)));
       const item = {
         saleId: sale._id,
         productName: sale.productName,
         affiliate: buyerData,
         date: sale.date,
-        dueDate: sale.dueDate,
+        dueDate,
         daysRemaining,
         quantity: sale.quantity,
         unitPrice: sale.unitPrice,
@@ -629,9 +618,9 @@ exports.getPayablesSummary = async (req, res) => {
     return res.status(500).json({ message: 'Error al obtener el resumen de pagos' });
   }
 };
+
 /**
  * PATCH /api/affiliates/seller/sales/:saleId/pay
- * El vendedor marca una venta puntual como pagada al afiliado.
  */
 exports.markSaleAsPaid = async (req, res) => {
   try {
@@ -660,11 +649,6 @@ exports.markSaleAsPaid = async (req, res) => {
 
 /**
  * PATCH /api/affiliates/seller/sales/:saleId/proof
- * body: { proofUrl, note? }
- * El vendedor adjunta o actualiza el comprobante de pago de una venta
- * (ej. captura de la transferencia al afiliado). No requiere que la venta
- * ya esté marcada como pagada, para poder subir el comprobante y recién
- * después confirmar el pago con markSaleAsPaid.
  */
 exports.updateSaleProof = async (req, res) => {
   try {
@@ -702,7 +686,6 @@ exports.updateSaleProof = async (req, res) => {
 
 /**
  * GET /api/affiliates/seller/perfil
- * Devuelve el perfil del vendedor afiliado (para precargar el form de edición).
  */
 exports.getProfile = async (req, res) => {
   try {
@@ -712,7 +695,9 @@ exports.getProfile = async (req, res) => {
     const profile = await AffiliateSellerApplication.findOne({ user: sellerId }).lean();
     if (!profile) return res.status(404).json({ message: 'No tenés un perfil de vendedor afiliado cargado' });
 
-    return res.status(200).json({ profile });
+    return res.status(200).json({
+      profile: { ...profile, paymentTermDays: profile.paymentTermDays === 15 ? 15 : 30 },
+    });
   } catch (err) {
     console.error('[affiliateSellerController.getProfile]', err);
     return res.status(500).json({ message: 'Error al obtener el perfil' });
@@ -721,9 +706,9 @@ exports.getProfile = async (req, res) => {
 
 /**
  * PATCH /api/affiliates/seller/perfil
- * body: { businessName?, contactName?, email?, phone?, description?, defaultPercentage?, maxAffiliates? }
- * El vendedor edita sus propios datos (ej. corregir un teléfono mal cargado).
- * Solo actualiza los campos que vienen en el body; el resto queda igual.
+ * FIX: ahora sí lee y guarda paymentTermDays (15 o 30). Antes el campo
+ * llegaba en el body pero se ignoraba por completo, por eso el select del
+ * frontend nunca surtía efecto.
  */
 exports.updateProfile = async (req, res) => {
   try {
@@ -738,6 +723,7 @@ exports.updateProfile = async (req, res) => {
       description,
       defaultPercentage,
       maxAffiliates,
+      paymentTermDays,
     } = req.body;
 
     const update = {};
@@ -781,6 +767,13 @@ exports.updateProfile = async (req, res) => {
       }
       update.maxAffiliates = max;
     }
+    if (paymentTermDays !== undefined) {
+      const term = Number(paymentTermDays);
+      if (term !== 15 && term !== 30) {
+        return res.status(400).json({ message: 'El ciclo de pago debe ser 15 o 30 días' });
+      }
+      update.paymentTermDays = term;
+    }
 
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ message: 'No se envió ningún dato para actualizar' });
@@ -793,7 +786,10 @@ exports.updateProfile = async (req, res) => {
     );
     if (!profile) return res.status(404).json({ message: 'No tenés un perfil de vendedor afiliado cargado' });
 
-    return res.status(200).json({ message: 'Perfil actualizado correctamente', profile });
+    return res.status(200).json({
+      message: 'Perfil actualizado correctamente',
+      profile: { ...profile.toObject(), paymentTermDays: profile.paymentTermDays === 15 ? 15 : 30 },
+    });
   } catch (err) {
     console.error('[affiliateSellerController.updateProfile]', err);
     return res.status(500).json({ message: 'Error al actualizar el perfil' });
@@ -802,10 +798,6 @@ exports.updateProfile = async (req, res) => {
 
 /**
  * GET /api/affiliates/seller/offers/:offerId/sales
- * query: page, limit (def 5)
- * Detalle de ventas de un producto en oferta: qué se vendió, quién lo vendió
- * (qué afiliado) y cuánta comisión corresponde por cada venta, más un total
- * acumulado de comisión y cantidad para esa oferta.
  */
 exports.listOfferSales = async (req, res) => {
   try {
@@ -837,7 +829,7 @@ exports.listOfferSales = async (req, res) => {
     const items = sales.map((s) => ({
       saleId: s._id,
       date: s.date,
-      dueDate: s.dueDate,
+      dueDate: resolveDueDate(s),
       paid: s.paid,
       paymentProofUrl: s.paymentProofUrl,
       paymentProofNote: s.paymentProofNote,
