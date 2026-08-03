@@ -9,9 +9,6 @@ function Product() {
   return require("mongoose").model("Product");
 }
 
-// ─── POST /api/orders  (crear nueva orden) origina order de antes────────────────────────────────
-// NUEVO: descuenta stock al momento de la compra de forma atómica.
-// Si no hay stock suficiente para algún item, se aborta todo sin crear la orden.
 router.post("/", auth, async (req, res) => {
   try {
     const Prod = Product();
