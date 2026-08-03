@@ -266,6 +266,7 @@ exports.listMyApplications = async (req, res) => {
  * cobro y el detalle de cada venta pendiente con su vencimiento (30 días
  * desde la fecha de esa venta puntual). Las que vencen en 5 días o menos
  * van también en "urgentSales" para disparar el aviso en el frontend.
+ * Además arma "paidSales" con el historial de cobros ya recibidos.
  */
 exports.getEarningsSummary = async (req, res) => {
   try {
@@ -285,12 +286,25 @@ exports.getEarningsSummary = async (req, res) => {
     let totalCollected = 0;
     const pendingSales = [];
     const urgentSales = [];
+    const paidSales = [];
 
     for (const sale of sales) {
       totalEarned += sale.commissionAmount;
 
       if (sale.paid) {
         totalCollected += sale.commissionAmount;
+        paidSales.push({
+          saleId: sale._id,
+          productName: sale.productName,
+          seller: mapSellerData(sellerDataById.get(String(sale.seller))),
+          date: sale.date,
+          paidAt: sale.paidAt,
+          quantity: sale.quantity,
+          unitPrice: sale.unitPrice,
+          totalAmount: sale.quantity * sale.unitPrice,
+          commissionAmount: sale.commissionAmount,
+          proofUrl: sale.paymentProofUrl || null,
+        });
         continue;
       }
 
@@ -307,7 +321,8 @@ exports.getEarningsSummary = async (req, res) => {
         unitPrice: sale.unitPrice,
         totalAmount: sale.quantity * sale.unitPrice,
         commissionAmount: sale.commissionAmount,
-        rejected: sale.rejected,
+        paymentDisputed: sale.rejected,
+        disputeReason: sale.rejectionReason || null,
       };
       pendingSales.push(item);
       if (daysRemaining <= 5) urgentSales.push(item);
@@ -315,6 +330,7 @@ exports.getEarningsSummary = async (req, res) => {
 
     pendingSales.sort((a, b) => a.daysRemaining - b.daysRemaining);
     urgentSales.sort((a, b) => a.daysRemaining - b.daysRemaining);
+    paidSales.sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
 
     return res.status(200).json({
       totalEarned,
@@ -322,13 +338,13 @@ exports.getEarningsSummary = async (req, res) => {
       totalCollected,
       pendingSales,
       urgentSales,
+      paidSales,
     });
   } catch (err) {
     console.error('[affiliateBuyerController.getEarningsSummary]', err);
     return res.status(500).json({ message: 'Error al obtener tu resumen de ganancias' });
   }
 };
-
 /**
  * GET /api/affiliates/buyer/perfil
  * Devuelve el perfil del comprador afiliado (para precargar el form de edición).
