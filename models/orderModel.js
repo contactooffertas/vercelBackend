@@ -1,12 +1,10 @@
 const mongoose = require("mongoose");
-
 const orderItemSchema = new mongoose.Schema({
   product:  { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
   name:     String,
   price:    Number,
   quantity: Number,
 });
-
 const orderSchema = new mongoose.Schema({
   user:   { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   items:  [orderItemSchema],
@@ -20,12 +18,6 @@ const orderSchema = new mongoose.Schema({
   businessPhone: { type: String, default: "" },
   businessId:    { type: mongoose.Schema.Types.ObjectId, ref: "Business" },
   date: { type: Date, default: Date.now },
-
-  affiliateCode: { type: String, default: null, index: true },
-  // Evita registrar la venta de afiliado dos veces si /keep se llamara
-  // más de una vez sobre la misma orden.
-  affiliateSaleProcessed: { type: Boolean, default: false },
-
   // ── Calificaciones ────────────────────────────────────────────────────
   buyerRating: {
     rating:    { type: Number, min: 1, max: 5, default: null },
@@ -38,5 +30,4 @@ const orderSchema = new mongoose.Schema({
     ratedAt:   { type: Date, default: null },
   },
 }, { timestamps: true });
-
 module.exports = mongoose.model("Order", orderSchema);
