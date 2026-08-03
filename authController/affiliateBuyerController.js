@@ -13,6 +13,8 @@ const sendEmail = require('../utils/sendMail');
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://mercadorosario.com';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://new-backend-lovat.vercel.app';
 const CURRENT_TERMS_VERSION = 1;
+const DEFAULT_TERM_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isBuyer(req) {
   return !!req.user && req.user.role !== 'seller' && req.user.role !== 'admin';
@@ -22,10 +24,6 @@ function getBuyerId(req) {
   return req.user.id || req.user._id;
 }
 
-// Antes apuntaba a /tienda/:sellerId/producto/:productId, ruta inexistente
-// en el frontend (y con el User id del vendedor en vez del Business id).
-// Ahora reutiliza /p/:id, que ya resuelve el businessId correcto desde el
-// producto y ya tiene el sistema de OG cards para WhatsApp/Telegram.
 function buildAffiliateLink(sellerId, productId, affiliateCode) {
   return `${BACKEND_URL}/p/${productId}?ref=${affiliateCode}`;
 }
@@ -39,17 +37,24 @@ function mapSellerData(sellerApp) {
     email: sellerApp.email,
     phone: sellerApp.phone,
     description: sellerApp.description,
+    paymentTermDays: sellerApp.paymentTermDays === 15 ? 15 : 30,
   };
 }
 
 function daysBetween(from, to) {
-  return Math.ceil((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
+  return Math.ceil((to.getTime() - from.getTime()) / DAY_MS);
+}
+
+// Mismo fix que del lado vendedor: si la venta no tiene dueDate guardado
+// (datos viejos), se calcula uno en vez de mandar null al frontend.
+function resolveDueDate(sale) {
+  if (sale.dueDate) return new Date(sale.dueDate);
+  const base = sale.date ? new Date(sale.date) : new Date(sale.createdAt || Date.now());
+  return new Date(base.getTime() + DEFAULT_TERM_DAYS * DAY_MS);
 }
 
 /**
  * GET /api/affiliates/buyer/offers
- * query: page (def 1), limit (def 5, max 20), search
- * Lista, de a 5 en 5, las ofertas activas de todos los vendedores.
  */
 exports.getAvailableOffers = async (req, res) => {
   try {
@@ -114,7 +119,6 @@ exports.getAvailableOffers = async (req, res) => {
 
 /**
  * POST /api/affiliates/buyer/offers/:offerId/apply
- * Aplica a una oferta puntual. Requiere TyC aceptados y perfil de comprador cargado.
  */
 exports.applyToOffer = async (req, res) => {
   try {
@@ -179,9 +183,6 @@ exports.applyToOffer = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/mis-ofertas
- * query: status (def 'pending'), page, limit (def 5)
- * Trae, de a 5 por vez, las solicitudes/afiliaciones del comprador, con el
- * monto total vendido (no solo la cantidad) para que se vea claro.
  */
 exports.listMyApplications = async (req, res) => {
   try {
@@ -262,11 +263,7 @@ exports.listMyApplications = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/resumen
- * Cuánto lleva ganado el afiliado en total, cuánto tiene pendiente de
- * cobro y el detalle de cada venta pendiente con su vencimiento (30 días
- * desde la fecha de esa venta puntual). Las que vencen en 5 días o menos
- * van también en "urgentSales" para disparar el aviso en el frontend.
- * Además arma "paidSales" con el historial de cobros ya recibidos.
+ * FIX: usa resolveDueDate en vez de sale.dueDate crudo (nunca manda null).
  */
 exports.getEarningsSummary = async (req, res) => {
   try {
@@ -309,13 +306,14 @@ exports.getEarningsSummary = async (req, res) => {
       }
 
       totalPending += sale.commissionAmount;
-      const daysRemaining = daysBetween(now, new Date(sale.dueDate));
+      const dueDate = resolveDueDate(sale);
+      const daysRemaining = daysBetween(now, dueDate);
       const item = {
         saleId: sale._id,
         productName: sale.productName,
         seller: mapSellerData(sellerDataById.get(String(sale.seller))),
         date: sale.date,
-        dueDate: sale.dueDate,
+        dueDate,
         daysRemaining,
         quantity: sale.quantity,
         unitPrice: sale.unitPrice,
@@ -345,9 +343,9 @@ exports.getEarningsSummary = async (req, res) => {
     return res.status(500).json({ message: 'Error al obtener tu resumen de ganancias' });
   }
 };
+
 /**
  * GET /api/affiliates/buyer/perfil
- * Devuelve el perfil del comprador afiliado (para precargar el form de edición).
  */
 exports.getProfile = async (req, res) => {
   try {
@@ -366,9 +364,6 @@ exports.getProfile = async (req, res) => {
 
 /**
  * PATCH /api/affiliates/buyer/perfil
- * body: { firstName?, lastName?, email?, phone?, city?, province?, socialMedia?, salesExperience? }
- * El comprador edita sus propios datos (ej. corregir un teléfono mal cargado).
- * Solo actualiza los campos que vienen en el body; el resto queda igual.
  */
 exports.updateProfile = async (req, res) => {
   try {
@@ -418,7 +413,6 @@ exports.updateProfile = async (req, res) => {
       if (!value) return res.status(400).json({ message: 'La provincia no puede estar vacía' });
       update.province = value;
     }
-    // Opcionales en el modelo: se pueden vaciar sin problema.
     if (socialMedia !== undefined) update.socialMedia = String(socialMedia).trim();
     if (salesExperience !== undefined) update.salesExperience = String(salesExperience).trim();
 
@@ -442,10 +436,6 @@ exports.updateProfile = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/mis-ventas
- * query: page, limit (def 5), applicationId? (para filtrar por una sola afiliación)
- * Detalle de las ventas que generó el afiliado: qué producto, a qué vendedor,
- * cuánto vendió y cuánta comisión le corresponde por cada una, más un total
- * acumulado de comisión y cantidad.
  */
 exports.listMySales = async (req, res) => {
   try {
@@ -478,7 +468,7 @@ exports.listMySales = async (req, res) => {
     const items = sales.map((s) => ({
       saleId: s._id,
       date: s.date,
-      dueDate: s.dueDate,
+      dueDate: resolveDueDate(s),
       paid: s.paid,
       paidAt: s.paidAt,
       rejected: s.rejected,
@@ -526,10 +516,6 @@ exports.listMySales = async (req, res) => {
 
 /**
  * PATCH /api/affiliates/buyer/sales/:saleId/reject-payment
- * body: { reason? }
- * El afiliado marca como rechazada/objetada una venta cuyo pago no
- * reconoce (ej. no le llegó, monto mal calculado, etc.). Solo puede
- * rechazar ventas propias que todavía no fueron pagadas.
  */
 exports.rejectPayment = async (req, res) => {
   try {
