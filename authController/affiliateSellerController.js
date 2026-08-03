@@ -544,7 +544,9 @@ exports.listMyAffiliates = async (req, res) => {
  * Cuánto tiene que pagarles el vendedor a sus afiliados en total, agrupado
  * por afiliado, con el detalle de cada venta pendiente y su vencimiento
  * (30 días desde la fecha de esa venta puntual). Las que vencen en 5 días
- * o menos van también en "urgentSales" para disparar el aviso en el frontend.
+ * o menos van también en "urgentSales"; las que el afiliado marcó como no
+ * cobradas van en "disputedSales". "paidSales" trae el historial de pagos
+ * ya realizados, con su comprobante.
  */
 exports.getPayablesSummary = async (req, res) => {
   try {
@@ -563,11 +565,25 @@ exports.getPayablesSummary = async (req, res) => {
     let totalPaidHistoric = 0;
     const pendingSales = [];
     const urgentSales = [];
+    const disputedSales = [];
+    const paidSales = [];
     const byAffiliateMap = new Map();
 
     for (const sale of sales) {
       if (sale.paid) {
         totalPaidHistoric += sale.commissionAmount;
+        paidSales.push({
+          saleId: sale._id,
+          productName: sale.productName,
+          affiliate: mapBuyerData(buyerDataById.get(String(sale.affiliate))),
+          date: sale.date,
+          paidAt: sale.paidAt,
+          quantity: sale.quantity,
+          unitPrice: sale.unitPrice,
+          totalAmount: sale.quantity * sale.unitPrice,
+          commissionAmount: sale.commissionAmount,
+          proofUrl: sale.paymentProofUrl || null,
+        });
         continue;
       }
 
@@ -585,9 +601,12 @@ exports.getPayablesSummary = async (req, res) => {
         unitPrice: sale.unitPrice,
         totalAmount: sale.quantity * sale.unitPrice,
         commissionAmount: sale.commissionAmount,
+        paymentDisputed: sale.rejected,
+        disputeReason: sale.rejectionReason || null,
       };
       pendingSales.push(item);
       if (daysRemaining <= 5) urgentSales.push(item);
+      if (sale.rejected) disputedSales.push(item);
 
       const key = String(sale.affiliate);
       const entry = byAffiliateMap.get(key) || { affiliate: buyerData, totalPending: 0, sales: [] };
@@ -598,6 +617,8 @@ exports.getPayablesSummary = async (req, res) => {
 
     pendingSales.sort((a, b) => a.daysRemaining - b.daysRemaining);
     urgentSales.sort((a, b) => a.daysRemaining - b.daysRemaining);
+    disputedSales.sort((a, b) => a.daysRemaining - b.daysRemaining);
+    paidSales.sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
     const byAffiliate = Array.from(byAffiliateMap.values()).sort((a, b) => b.totalPending - a.totalPending);
 
     return res.status(200).json({
@@ -605,6 +626,8 @@ exports.getPayablesSummary = async (req, res) => {
       totalPaidHistoric,
       pendingSales,
       urgentSales,
+      disputedSales,
+      paidSales,
       byAffiliate,
     });
   } catch (err) {
@@ -612,7 +635,6 @@ exports.getPayablesSummary = async (req, res) => {
     return res.status(500).json({ message: 'Error al obtener el resumen de pagos' });
   }
 };
-
 /**
  * PATCH /api/affiliates/seller/sales/:saleId/pay
  * El vendedor marca una venta puntual como pagada al afiliado.
