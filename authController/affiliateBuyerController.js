@@ -25,7 +25,7 @@ function getBuyerId(req) {
 }
 
 function buildAffiliateLink(sellerId, productId, affiliateCode) {
-  return `${FRONTEND_URL}/p/${productId}?ref=${affiliateCode}`;
+  return `${BACKEND_URL}/p/${productId}?ref=${affiliateCode}`;
 }
 
 function mapSellerData(sellerApp) {
