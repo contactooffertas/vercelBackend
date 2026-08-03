@@ -643,6 +643,48 @@ exports.markSaleAsPaid = async (req, res) => {
 };
 
 /**
+ * PATCH /api/affiliates/seller/sales/:saleId/proof
+ * body: { proofUrl, note? }
+ * El vendedor adjunta o actualiza el comprobante de pago de una venta
+ * (ej. captura de la transferencia al afiliado). No requiere que la venta
+ * ya esté marcada como pagada, para poder subir el comprobante y recién
+ * después confirmar el pago con markSaleAsPaid.
+ */
+exports.updateSaleProof = async (req, res) => {
+  try {
+    if (!isSeller(req)) return res.status(403).json({ message: 'Solo los vendedores pueden acceder' });
+
+    const sellerId = getSellerId(req);
+    const { saleId } = req.params;
+    const { proofUrl, note } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(saleId)) {
+      return res.status(400).json({ message: 'Venta inválida' });
+    }
+
+    if (proofUrl !== undefined && !String(proofUrl).trim()) {
+      return res.status(400).json({ message: 'El comprobante no puede estar vacío' });
+    }
+
+    const update = { paymentProofUpdatedAt: new Date() };
+    if (proofUrl !== undefined) update.paymentProofUrl = String(proofUrl).trim();
+    if (note !== undefined) update.paymentProofNote = String(note).trim();
+
+    const sale = await AffiliateSale.findOneAndUpdate(
+      { _id: saleId, seller: sellerId },
+      update,
+      { new: true, runValidators: true }
+    );
+    if (!sale) return res.status(404).json({ message: 'Venta no encontrada' });
+
+    return res.status(200).json({ message: 'Comprobante actualizado correctamente', sale });
+  } catch (err) {
+    console.error('[affiliateSellerController.updateSaleProof]', err);
+    return res.status(500).json({ message: 'Error al actualizar el comprobante de pago' });
+  }
+};
+
+/**
  * GET /api/affiliates/seller/perfil
  * Devuelve el perfil del vendedor afiliado (para precargar el form de edición).
  */
@@ -781,6 +823,8 @@ exports.listOfferSales = async (req, res) => {
       date: s.date,
       dueDate: s.dueDate,
       paid: s.paid,
+      paymentProofUrl: s.paymentProofUrl,
+      paymentProofNote: s.paymentProofNote,
       productName: s.productName,
       quantity: s.quantity,
       unitPrice: s.unitPrice,
