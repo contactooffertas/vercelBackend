@@ -1,7 +1,11 @@
 // models/AffiliateSale.js
 //
 const mongoose = require('mongoose');
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const AffiliateSellerApplication = require('./AffiliateSellerApplication');
+
+const DEFAULT_TERM_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 const affiliateSaleSchema = new mongoose.Schema(
   {
     application: {
@@ -59,7 +63,9 @@ const affiliateSaleSchema = new mongoose.Schema(
       required: true,
       default: Date.now,
     },
-    // Se completa solo en el pre-validate si no vino seteada.
+    // Se completa solo en el pre-validate según el ciclo de pago (15 o 30
+    // días) que tenga configurado el vendedor EN ESE MOMENTO. Si el
+    // creador de la venta ya manda un dueDate explícito, se respeta ese.
     dueDate: {
       type: Date,
       required: true,
@@ -110,16 +116,41 @@ const affiliateSaleSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
 affiliateSaleSchema.virtual('totalAmount').get(function getTotalAmount() {
   return this.quantity * this.unitPrice;
 });
-affiliateSaleSchema.pre('validate', function setDueDate(next) {
-  if (!this.dueDate) {
-    const base = this.date instanceof Date ? this.date : new Date();
-    this.dueDate = new Date(base.getTime() + THIRTY_DAYS_MS);
+
+// ANTES: siempre sumaba 30 días fijos (THIRTY_DAYS_MS), sin importar lo que
+// el vendedor tuviera configurado en su perfil (paymentTermDays: 15 o 30).
+// AHORA: si no viene un dueDate explícito, busca el ciclo de pago vigente
+// del vendedor y calcula el vencimiento en base a eso. Si por algún motivo
+// no encuentra el perfil del vendedor, cae al default de 30 días (nunca
+// queda en null).
+affiliateSaleSchema.pre('validate', async function setDueDate(next) {
+  try {
+    if (!this.dueDate) {
+      const base = this.date instanceof Date ? this.date : new Date();
+      let termDays = DEFAULT_TERM_DAYS;
+
+      if (this.seller) {
+        const sellerProgram = await AffiliateSellerApplication.findOne({ user: this.seller })
+          .select('paymentTermDays')
+          .lean();
+        if (sellerProgram?.paymentTermDays === 15 || sellerProgram?.paymentTermDays === 30) {
+          termDays = sellerProgram.paymentTermDays;
+        }
+      }
+
+      this.dueDate = new Date(base.getTime() + termDays * DAY_MS);
+    }
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 });
+
 affiliateSaleSchema.set('toJSON', { virtuals: true });
 affiliateSaleSchema.set('toObject', { virtuals: true });
+
 module.exports = mongoose.model('AffiliateSale', affiliateSaleSchema);
