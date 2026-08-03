@@ -17,11 +17,6 @@ const PRODUCT_POPULATE = {
   },
 };
 
-// Precio final que paga el comprador por un item del carrito, aplicando
-// descuento normal o precio flash. Esta es la MISMA lógica que usa el
-// frontend (panel.tsx -> getFinalPrice) para mostrar el carrito. Se usa
-// tanto para mostrar el carrito como para calcular el total de la orden
-// en el checkout, así los dos números SIEMPRE coinciden.
 function getFinalUnitPrice(item) {
   if (item.isFlashOffer) return item.price;
   if (item.discount) return item.price * (1 - item.discount / 100);
@@ -51,10 +46,6 @@ function formatItems(cartItems) {
   }).filter(Boolean);
 }
 
-// Valida que el código de afiliado corresponda a una afiliación ACEPTADA
-// para ese producto puntual. Si no es válido (vencido, inventado, oferta
-// desactivada, etc.) devuelve null y el item se agrega como venta normal,
-// sin acreditarle nada a nadie.
 async function resolveAffiliateCode(productId, affiliateCode) {
   if (!affiliateCode) return null;
   try {
