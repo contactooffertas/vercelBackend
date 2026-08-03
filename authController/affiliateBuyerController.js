@@ -22,6 +22,10 @@ function getBuyerId(req) {
   return req.user.id || req.user._id;
 }
 
+// Antes apuntaba a /tienda/:sellerId/producto/:productId, ruta inexistente
+// en el frontend (y con el User id del vendedor en vez del Business id).
+// Ahora reutiliza /p/:id, que ya resuelve el businessId correcto desde el
+// producto y ya tiene el sistema de OG cards para WhatsApp/Telegram.
 function buildAffiliateLink(sellerId, productId, affiliateCode) {
   return `${BACKEND_URL}/p/${productId}?ref=${affiliateCode}`;
 }
@@ -44,6 +48,8 @@ function daysBetween(from, to) {
 
 /**
  * GET /api/affiliates/buyer/offers
+ * query: page (def 1), limit (def 5, max 20), search
+ * Lista, de a 5 en 5, las ofertas activas de todos los vendedores.
  */
 exports.getAvailableOffers = async (req, res) => {
   try {
@@ -173,6 +179,9 @@ exports.applyToOffer = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/mis-ofertas
+ * query: status (def 'pending'), page, limit (def 5)
+ * Trae, de a 5 por vez, las solicitudes/afiliaciones del comprador, con el
+ * monto total vendido (no solo la cantidad) para que se vea claro.
  */
 exports.listMyApplications = async (req, res) => {
   try {
@@ -253,6 +262,10 @@ exports.listMyApplications = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/resumen
+ * Cuánto lleva ganado el afiliado en total, cuánto tiene pendiente de
+ * cobro y el detalle de cada venta pendiente con su vencimiento (30 días
+ * desde la fecha de esa venta puntual). Las que vencen en 5 días o menos
+ * van también en "urgentSales" para disparar el aviso en el frontend.
  */
 exports.getEarningsSummary = async (req, res) => {
   try {
@@ -337,6 +350,9 @@ exports.getProfile = async (req, res) => {
 
 /**
  * PATCH /api/affiliates/buyer/perfil
+ * body: { firstName?, lastName?, email?, phone?, city?, province?, socialMedia?, salesExperience? }
+ * El comprador edita sus propios datos (ej. corregir un teléfono mal cargado).
+ * Solo actualiza los campos que vienen en el body; el resto queda igual.
  */
 exports.updateProfile = async (req, res) => {
   try {
@@ -410,6 +426,10 @@ exports.updateProfile = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/mis-ventas
+ * query: page, limit (def 5), applicationId? (para filtrar por una sola afiliación)
+ * Detalle de las ventas que generó el afiliado: qué producto, a qué vendedor,
+ * cuánto vendió y cuánta comisión le corresponde por cada una, más un total
+ * acumulado de comisión y cantidad.
  */
 exports.listMySales = async (req, res) => {
   try {
@@ -488,6 +508,13 @@ exports.listMySales = async (req, res) => {
   }
 };
 
+/**
+ * PATCH /api/affiliates/buyer/sales/:saleId/reject-payment
+ * body: { reason? }
+ * El afiliado marca como rechazada/objetada una venta cuyo pago no
+ * reconoce (ej. no le llegó, monto mal calculado, etc.). Solo puede
+ * rechazar ventas propias que todavía no fueron pagadas.
+ */
 exports.rejectPayment = async (req, res) => {
   try {
     if (!isBuyer(req)) return res.status(403).json({ message: 'Solo los compradores pueden acceder' });
