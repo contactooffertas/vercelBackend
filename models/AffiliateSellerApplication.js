@@ -1,6 +1,5 @@
 // models/AffiliateSellerApplication.js
 const mongoose = require('mongoose');
-
 const affiliateSellerApplicationSchema = new mongoose.Schema(
   {
     user: {
@@ -47,6 +46,11 @@ const affiliateSellerApplicationSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    paymentTermDays: {
+      type: Number,
+      enum: [15, 30],
+      default: 30,
+    },
     status: {
       type: String,
       enum: ['active', 'inactive'],
@@ -55,5 +59,4 @@ const affiliateSellerApplicationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
 module.exports = mongoose.model('AffiliateSellerApplication', affiliateSellerApplicationSchema);
