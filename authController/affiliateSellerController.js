@@ -541,12 +541,6 @@ exports.listMyAffiliates = async (req, res) => {
 
 /**
  * GET /api/affiliates/seller/resumen
- * Cuánto tiene que pagarles el vendedor a sus afiliados en total, agrupado
- * por afiliado, con el detalle de cada venta pendiente y su vencimiento
- * (30 días desde la fecha de esa venta puntual). Las que vencen en 5 días
- * o menos van también en "urgentSales"; las que el afiliado marcó como no
- * cobradas van en "disputedSales". "paidSales" trae el historial de pagos
- * ya realizados, con su comprobante.
  */
 exports.getPayablesSummary = async (req, res) => {
   try {
