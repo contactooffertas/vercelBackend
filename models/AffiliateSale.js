@@ -75,6 +75,22 @@ const affiliateSaleSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Comprobante de pago que el vendedor adjunta al pagarle al afiliado
+    // (ej. captura de la transferencia).
+    paymentProofUrl: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    paymentProofNote: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    paymentProofUpdatedAt: {
+      type: Date,
+      default: null,
+    },
     // El afiliado puede rechazar/objetar una venta no pagada (ej. pago
     // que no le llegó, monto incorrecto, etc.).
     rejected: {
