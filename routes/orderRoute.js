@@ -4,7 +4,6 @@ const auth     = require("../middleware/authMiddleware");
 const Order    = require("../models/orderModel");
 const Business = require("../models/businessModel");
 const User     = require("../models/userModel");
-const { registerAffiliateSaleForOrder } = require("../utils/affiliateSaleService");
 
 function Product() {
   return require("mongoose").model("Product");
@@ -16,7 +15,7 @@ function Product() {
 router.post("/", auth, async (req, res) => {
   try {
     const Prod = Product();
-    const { items, businessId, businessName, businessPhone, total, affiliateCode } = req.body;
+    const { items, businessId, businessName, businessPhone, total } = req.body;
 
     // ── PASO 1: Verificar y descontar stock de forma atómica ──────────────
     for (const item of items) {
@@ -37,9 +36,6 @@ router.post("/", auth, async (req, res) => {
     }
 
     // ── PASO 2: Crear la orden (stock ya reservado) ───────────────────────
-    // affiliateCode es opcional: viaja desde el frontend cuando el comprador
-    // llegó por un link /p/:id?ref=<codigo>. Si no viene, queda null y la
-    // orden se trata como una venta normal (sin comisión de afiliado).
     const order = await Order.create({
       user:          req.user.id,
       items,
@@ -48,7 +44,6 @@ router.post("/", auth, async (req, res) => {
       businessPhone,
       total,
       status:        "pending",
-      affiliateCode: affiliateCode || null,
     });
 
     // ── PASO 3: Notificar al vendedor via socket ──────────────────────────
@@ -194,9 +189,6 @@ router.patch("/:id/ship", auth, async (req, res) => {
 // ─── PATCH /api/orders/:id/keep ───────────────────────────────────────────
 // Comprador confirma recepción → delivered. Stock no se toca (venta definitiva).
 // NUEVO: notifica al vendedor via socket.
-// NUEVO: si la orden vino con affiliateCode, registra la(s) AffiliateSale
-// correspondientes recién acá, porque es el momento en que la venta ya es
-// definitiva (si el comprador la devuelve antes, no llega a este punto).
 router.patch("/:id/keep", auth, async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
@@ -216,9 +208,6 @@ router.patch("/:id/keep", auth, async (req, res) => {
         io.to(`user_${biz.owner}`).emit("orderDelivered", { orderId: order._id });
       }
     }
-
-    // ── Registrar venta de afiliado (si corresponde) ──────────────────────
-    await registerAffiliateSaleForOrder(order);
 
     res.json({ message: "Pedido finalizado como entregado", order });
   } catch (err) {
