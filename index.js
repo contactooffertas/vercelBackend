@@ -29,6 +29,48 @@ const { router: pushRoutes } = require('./routes/pushRoute');
 const app = express();
 connectDB();
 
+
+
+
+
+
+// test-affiliate-sale.js
+require('dotenv').config();
+const mongoose = require('mongoose');
+const AffiliateSale = require('./models/AffiliateSale');
+
+async function main() {
+  await mongoose.connect(process.env.MONGO_URI); // usá el nombre real de tu env var
+  console.log('Conectado a Mongo:', mongoose.connection.name);
+
+  try {
+    const fakeId = new mongoose.Types.ObjectId();
+    const sale = await AffiliateSale.create({
+      application: fakeId,
+      offer: fakeId,
+      seller: fakeId,
+      affiliate: fakeId,
+      productName: 'TEST PRODUCTO',
+      quantity: 1,
+      unitPrice: 100,
+      commissionPercentage: 10,
+      commissionAmount: 10,
+    });
+    console.log('✅ SE CREÓ:', sale._id.toString());
+  } catch (err) {
+    console.error('❌ FALLÓ AL CREAR:', err.message);
+    console.error(err);
+  }
+
+  await mongoose.disconnect();
+}
+
+main();
+
+
+
+
+
 // ── Middlewares globales ──────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
   "https://ofertas-lime-ten.vercel.app",
