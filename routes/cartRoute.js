@@ -112,6 +112,7 @@ router.post("/add", auth, async (req, res) => {
     // Programa de Afiliados: validamos el ?ref= contra una afiliación
     // aceptada para este producto puntual antes de confiar en él.
     const validAffiliateCode = await resolveAffiliateCode(productId, affiliateCode);
+    console.log("[DEBUG cart/add] recibido:", affiliateCode, "→ validado:", validAffiliateCode, "| productId:", productId, "| user:", req.user.id);
 
     const existingIndex = cart.items.findIndex(i => i.product.toString() === productId);
 
@@ -217,6 +218,13 @@ router.post("/checkout", auth, async (req, res) => {
       return res.status(400).json({ message: "El carrito esta vacio" });
     }
 
+    // ── DEBUG: qué trae el carrito justo antes de procesar el checkout ──────
+    console.log("[DEBUG cart/checkout] items del cart al iniciar checkout:", cart.items.map(i => ({
+      product: i.product?._id?.toString(),
+      name: i.product?.name,
+      affiliateCode: i.affiliateCode || null,
+    })));
+
     for (const i of cart.items) {
       const updated = await Product.findOneAndUpdate(
         { _id: i.product._id, stock: { $gte: i.quantity } },
@@ -297,12 +305,20 @@ router.post("/checkout", auth, async (req, res) => {
       // número acumulado.
       for (const item of group.items) {
         if (!item.affiliateCode) continue;
+
+        // ── DEBUG: qué item está entrando al bloque de acreditación ────────
+        console.log("[DEBUG cart/checkout] procesando afiliado:", item.affiliateCode, "| producto:", item.product?.toString(), "| cantidad:", item.quantity);
+
         try {
           const application = await AffiliateOfferApplication.findOneAndUpdate(
             { affiliateCode: item.affiliateCode, status: "accepted" },
             { $inc: { salesCount: item.quantity } },
             { new: true }
           );
+
+          // ── DEBUG: si esto sale false, ahí está el corte ───────────────
+          console.log("[DEBUG cart/checkout] application encontrada:", !!application, application ? `(id: ${application._id}, seller: ${application.seller})` : "");
+
           if (!application) continue;
 
           const offerDoc = await AffiliateOffer.findById(application.offer)
@@ -311,7 +327,7 @@ router.post("/checkout", auth, async (req, res) => {
           const commissionPercentage = offerDoc?.commissionPercentage ?? 0;
           const commissionAmount = item.price * item.quantity * (commissionPercentage / 100);
 
-          await AffiliateSale.create({
+          const createdSale = await AffiliateSale.create({
             application: application._id,
             offer: application.offer,
             seller: application.seller,
@@ -325,8 +341,11 @@ router.post("/checkout", auth, async (req, res) => {
             commissionPercentage,
             commissionAmount,
           });
+
+          // ── DEBUG: confirmación de que el AffiliateSale se creó ─────────
+          console.log("[DEBUG cart/checkout] AffiliateSale creado:", createdSale._id.toString());
         } catch (affErr) {
-          console.error("[cart/checkout] Error acreditando venta a afiliado:", affErr.message);
+          console.error("[cart/checkout] Error acreditando venta a afiliado:", affErr.message, affErr.stack);
         }
       }
     }
