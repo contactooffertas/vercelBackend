@@ -304,7 +304,15 @@ exports.applyToOffer = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/mis-ofertas
- * Ahora agrupado por TIENDA (paginado de a 3 tiendas), cada tienda trae sus productos/aplicaciones adentro.
+ * Agrupado por TIENDA (paginado de a 3 tiendas), cada tienda trae sus productos/aplicaciones adentro.
+ *
+ * Cada aplicación incluye ahora:
+ *  - product.stock: stock actual del producto (si el campo en Product se llama
+ *    distinto de "stock", ajustar el select de abajo y este mapeo).
+ *  - offerActive: true si la oferta del vendedor sigue activa, false si la
+ *    desactivó (o si el offer ya no existe). El frontend usa esto y el stock
+ *    para OCULTAR el producto de "Mis Ofertas" cuando no está disponible, así
+ *    el afiliado no sigue compartiendo un link que no le va a generar comisión.
  */
 exports.listMyApplications = async (req, res) => {
   try {
@@ -318,7 +326,7 @@ exports.listMyApplications = async (req, res) => {
     const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 3));
 
     const applications = await AffiliateOfferApplication.find({ buyer: buyerId, status })
-      .populate({ path: 'offer', populate: { path: 'product', select: 'name image price' } })
+      .populate({ path: 'offer', populate: { path: 'product', select: 'name image price stock' } })
       .sort({ appliedAt: -1 })
       .lean();
 
@@ -374,7 +382,12 @@ exports.listMyApplications = async (req, res) => {
           name: a.offer.product.name,
           image: a.offer.product.image || null,
           price: a.offer.product.price,
+          stock: typeof a.offer.product.stock === 'number' ? a.offer.product.stock : undefined,
         } : null,
+        // true = oferta activa. false = el vendedor la desactivó o el offer
+        // ya no existe. El frontend oculta el producto de "Mis Ofertas" si
+        // esto es false o si el stock llegó a 0.
+        offerActive: a.offer ? !!a.offer.active : false,
         affiliateLink:
           a.status === 'accepted' && a.affiliateCode && a.offer?.product
             ? buildAffiliateLink(a.seller, a.offer.product._id, a.affiliateCode)
@@ -406,7 +419,7 @@ exports.listMyApplications = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/resumen
- * Ahora agrupado por TIENDA.
+ * Agrupado por TIENDA.
  */
 exports.getEarningsSummary = async (req, res) => {
   try {
@@ -716,4 +729,3 @@ exports.rejectPayment = async (req, res) => {
     return res.status(500).json({ message: 'Error al rechazar el pago de la venta' });
   }
 };
-
