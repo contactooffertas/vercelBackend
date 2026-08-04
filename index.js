@@ -35,7 +35,6 @@ connectDB();
 
 
 // test-affiliate-sale.js
-require('dotenv').config();
 const mongoose = require('mongoose');
 const AffiliateSale = require('./models/AffiliateSale');
 
