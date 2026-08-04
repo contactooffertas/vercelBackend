@@ -29,19 +29,16 @@ const { router: pushRoutes } = require('./routes/pushRoute');
 const app = express();
 connectDB();
 
-
-
-
-
-
-// test-affiliate-sale.js
-const mongoose = require('mongoose');
+// ── Ruta de test: crea una AffiliateSale de prueba para chequear la DB ─────────
+// ⚠️ Antes esto era un script suelto con un main() que se auto-ejecutaba al
+// importar el archivo (rompía el deploy en Vercel). Ahora es funcional pero
+// SOLO corre cuando entrás a esta ruta a propósito, no al levantar el server.
+// Usa la conexión que ya abre connectDB() arriba, no abre una segunda.
+// Border la ruta (o comentá el app.get de abajo) cuando termines de testear.
 const AffiliateSale = require('./models/AffiliateSale');
+const mongoose = require('mongoose');
 
-async function main() {
-  await mongoose.connect(process.env.MONGO_URI); // usá el nombre real de tu env var
-  console.log('Conectado a Mongo:', mongoose.connection.name);
-
+app.get('/api/test-affiliate-sale', async (req, res) => {
   try {
     const fakeId = new mongoose.Types.ObjectId();
     const sale = await AffiliateSale.create({
@@ -56,19 +53,12 @@ async function main() {
       commissionAmount: 10,
     });
     console.log('✅ SE CREÓ:', sale._id.toString());
+    res.status(200).json({ status: 'ok', createdId: sale._id.toString() });
   } catch (err) {
     console.error('❌ FALLÓ AL CREAR:', err.message);
-    console.error(err);
+    res.status(500).json({ status: 'error', message: err.message });
   }
-
-  await mongoose.disconnect();
-}
-
-main();
-
-
-
-
+});
 
 // ── Middlewares globales ──────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
