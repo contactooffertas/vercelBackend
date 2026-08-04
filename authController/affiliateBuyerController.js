@@ -15,6 +15,7 @@ const BACKEND_URL = process.env.BACKEND_URL || 'https://new-backend-lovat.vercel
 const CURRENT_TERMS_VERSION = 1;
 const DEFAULT_TERM_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const NEW_STORE_WINDOW_MS = 30 * DAY_MS;
 
 function isBuyer(req) {
   return !!req.user && req.user.role !== 'seller' && req.user.role !== 'admin';
@@ -45,8 +46,6 @@ function daysBetween(from, to) {
   return Math.ceil((to.getTime() - from.getTime()) / DAY_MS);
 }
 
-// Mismo fix que del lado vendedor: si la venta no tiene dueDate guardado
-// (datos viejos), se calcula uno en vez de mandar null al frontend.
 function resolveDueDate(sale) {
   if (sale.dueDate) return new Date(sale.dueDate);
   const base = sale.date ? new Date(sale.date) : new Date(sale.createdAt || Date.now());
@@ -54,18 +53,129 @@ function resolveDueDate(sale) {
 }
 
 /**
- * GET /api/affiliates/buyer/offers
+ * GET /api/affiliates/buyer/stores
+ * Lista TIENDAS (no productos) con paginación de a 3, con tabs: todas | nuevas | mis-tiendas
  */
-exports.getAvailableOffers = async (req, res) => {
+exports.getAvailableStores = async (req, res) => {
   try {
     if (!isBuyer(req)) return res.status(403).json({ message: 'Solo los compradores pueden acceder' });
 
     const buyerId = getBuyerId(req);
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 3));
+    const tab = ['todas', 'nuevas', 'mis-tiendas'].includes(req.query.tab) ? req.query.tab : 'todas';
+    const search = (req.query.search || '').trim();
+
+    const matchStage = { active: true };
+
+    if (tab === 'mis-tiendas') {
+      const mySellers = await AffiliateOfferApplication.find({ buyer: buyerId, status: 'accepted' }).distinct('seller');
+      if (mySellers.length === 0) {
+        return res.status(200).json({ items: [], page: 1, totalPages: 1, total: 0, limit, tab });
+      }
+      matchStage.seller = { $in: mySellers };
+    }
+
+    const grouped = await AffiliateOffer.aggregate([
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'product',
+          foreignField: '_id',
+          as: 'productDoc',
+        },
+      },
+      { $unwind: '$productDoc' },
+      { $match: { 'productDoc.blocked': { $ne: true } } },
+      {
+        $group: {
+          _id: '$seller',
+          minCommission: { $min: '$commissionPercentage' },
+          maxCommission: { $max: '$commissionPercentage' },
+          offerCount: { $sum: 1 },
+          categories: { $push: '$productDoc.category' },
+          joinedAt: { $min: '$createdAt' },
+        },
+      },
+    ]);
+
+    const sellerIds = grouped.map((g) => g._id);
+    const sellerApplications = await AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean();
+    const sellerDataById = new Map(sellerApplications.map((s) => [String(s.user), s]));
+
+    let stores = grouped
+      .filter((g) => sellerDataById.has(String(g._id)))
+      .map((g) => {
+        const sellerApp = sellerDataById.get(String(g._id));
+        const categoryCounts = {};
+        for (const cat of g.categories) {
+          const key = cat || 'general';
+          categoryCounts[key] = (categoryCounts[key] || 0) + 1;
+        }
+        const mainCategory = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'general';
+
+        return {
+          sellerId: g._id,
+          businessName: sellerApp.businessName,
+          contactName: sellerApp.contactName,
+          email: sellerApp.email,
+          phone: sellerApp.phone,
+          description: sellerApp.description,
+          category: mainCategory,
+          offerCount: g.offerCount,
+          commissionMin: g.minCommission,
+          commissionMax: g.maxCommission,
+          joinedAt: g.joinedAt,
+        };
+      });
+
+    if (search) {
+      const re = new RegExp(search, 'i');
+      stores = stores.filter((s) => re.test(s.businessName || ''));
+    }
+
+    if (tab === 'nuevas') {
+      const now = Date.now();
+      stores = stores.filter((s) => now - new Date(s.joinedAt).getTime() <= NEW_STORE_WINDOW_MS);
+    }
+
+    stores.sort((a, b) => new Date(b.joinedAt) - new Date(a.joinedAt));
+
+    const total = stores.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const items = stores.slice((safePage - 1) * limit, safePage * limit);
+
+    return res.status(200).json({ items, page: safePage, totalPages, total, limit, tab });
+  } catch (err) {
+    console.error('[affiliateBuyerController.getAvailableStores]', err);
+    return res.status(500).json({ message: 'Error al obtener las tiendas' });
+  }
+};
+
+/**
+ * GET /api/affiliates/buyer/stores/:sellerId/products
+ * Productos en oferta de UNA tienda puntual, marcando a cuáles ya estoy afiliado.
+ */
+exports.getStoreProducts = async (req, res) => {
+  try {
+    if (!isBuyer(req)) return res.status(403).json({ message: 'Solo los compradores pueden acceder' });
+
+    const buyerId = getBuyerId(req);
+    const { sellerId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(sellerId)) {
+      return res.status(400).json({ message: 'Tienda inválida' });
+    }
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 5));
     const search = (req.query.search || '').trim();
 
-    const filter = { active: true };
+    const sellerApp = await AffiliateSellerApplication.findOne({ user: sellerId }).lean();
+    if (!sellerApp) return res.status(404).json({ message: 'Tienda no encontrada' });
+
+    const filter = { active: true, seller: sellerId };
     if (search) {
       const matchingProducts = await Product.find({
         name: { $regex: search, $options: 'i' },
@@ -79,15 +189,11 @@ exports.getAvailableOffers = async (req, res) => {
     const safePage = Math.min(page, totalPages);
 
     const offers = await AffiliateOffer.find(filter)
-      .populate('product', 'name image price')
+      .populate('product', 'name image price category')
       .sort({ createdAt: -1 })
       .skip((safePage - 1) * limit)
       .limit(limit)
       .lean();
-
-    const sellerIds = offers.map((o) => o.seller);
-    const sellerApplications = await AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean();
-    const sellerDataById = new Map(sellerApplications.map((s) => [String(s.user), s]));
 
     const myApplications = await AffiliateOfferApplication.find({
       buyer: buyerId,
@@ -105,15 +211,30 @@ exports.getAvailableOffers = async (req, res) => {
           name: o.product.name,
           image: o.product.image || null,
           price: o.product.price,
+          category: o.product.category,
         },
-        seller: mapSellerData(sellerDataById.get(String(o.seller))),
         applicationStatus: myStatusByOffer.get(String(o._id)) || null,
       }));
 
-    return res.status(200).json({ items, page: safePage, totalPages, total, limit });
+    return res.status(200).json({
+      items,
+      page: safePage,
+      totalPages,
+      total,
+      limit,
+      store: {
+        sellerId,
+        businessName: sellerApp.businessName,
+        contactName: sellerApp.contactName,
+        email: sellerApp.email,
+        phone: sellerApp.phone,
+        description: sellerApp.description,
+        paymentTermDays: sellerApp.paymentTermDays === 15 ? 15 : 30,
+      },
+    });
   } catch (err) {
-    console.error('[affiliateBuyerController.getAvailableOffers]', err);
-    return res.status(500).json({ message: 'Error al obtener las ofertas disponibles' });
+    console.error('[affiliateBuyerController.getStoreProducts]', err);
+    return res.status(500).json({ message: 'Error al obtener los productos de la tienda' });
   }
 };
 
@@ -183,6 +304,7 @@ exports.applyToOffer = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/mis-ofertas
+ * Ahora agrupado por TIENDA (paginado de a 3 tiendas), cada tienda trae sus productos/aplicaciones adentro.
  */
 exports.listMyApplications = async (req, res) => {
   try {
@@ -193,21 +315,14 @@ exports.listMyApplications = async (req, res) => {
       ? req.query.status
       : 'pending';
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 5));
+    const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 3));
 
-    const filter = { buyer: buyerId, status };
-    const total = await AffiliateOfferApplication.countDocuments(filter);
-    const totalPages = Math.max(1, Math.ceil(total / limit));
-    const safePage = Math.min(page, totalPages);
-
-    const applications = await AffiliateOfferApplication.find(filter)
+    const applications = await AffiliateOfferApplication.find({ buyer: buyerId, status })
       .populate({ path: 'offer', populate: { path: 'product', select: 'name image price' } })
       .sort({ appliedAt: -1 })
-      .skip((safePage - 1) * limit)
-      .limit(limit)
       .lean();
 
-    const sellerIds = applications.map((a) => a.seller);
+    const sellerIds = [...new Set(applications.map((a) => String(a.seller)))];
     const sellerApplications = await AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean();
     const sellerDataById = new Map(sellerApplications.map((s) => [String(s.user), s]));
 
@@ -227,9 +342,23 @@ exports.listMyApplications = async (req, res) => {
     ]);
     const salesByApp = new Map(salesAgg.map((s) => [String(s._id), s]));
 
-    const items = applications.map((a) => {
+    const storeMap = new Map();
+    for (const a of applications) {
+      const sellerKey = String(a.seller);
+      if (!storeMap.has(sellerKey)) {
+        storeMap.set(sellerKey, {
+          sellerId: a.seller,
+          seller: mapSellerData(sellerDataById.get(sellerKey)),
+          latestAppliedAt: a.appliedAt,
+          applications: [],
+          totalSalesAmount: 0,
+          totalEarnedCommission: 0,
+          totalPendingCommission: 0,
+        });
+      }
+      const storeEntry = storeMap.get(sellerKey);
       const salesSummary = salesByApp.get(String(a._id));
-      return {
+      const item = {
         applicationId: a._id,
         status: a.status,
         appliedAt: a.appliedAt,
@@ -246,13 +375,27 @@ exports.listMyApplications = async (req, res) => {
           image: a.offer.product.image || null,
           price: a.offer.product.price,
         } : null,
-        seller: mapSellerData(sellerDataById.get(String(a.seller))),
         affiliateLink:
           a.status === 'accepted' && a.affiliateCode && a.offer?.product
             ? buildAffiliateLink(a.seller, a.offer.product._id, a.affiliateCode)
             : null,
       };
-    });
+      storeEntry.applications.push(item);
+      storeEntry.totalSalesAmount += item.totalSalesAmount;
+      storeEntry.totalEarnedCommission += item.totalEarnedCommission;
+      storeEntry.totalPendingCommission += item.totalPendingCommission;
+      if (new Date(a.appliedAt) > new Date(storeEntry.latestAppliedAt)) {
+        storeEntry.latestAppliedAt = a.appliedAt;
+      }
+    }
+
+    let stores = Array.from(storeMap.values()).filter((s) => s.seller);
+    stores.sort((a, b) => new Date(b.latestAppliedAt) - new Date(a.latestAppliedAt));
+
+    const total = stores.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const items = stores.slice((safePage - 1) * limit, safePage * limit);
 
     return res.status(200).json({ items, page: safePage, totalPages, total, limit });
   } catch (err) {
@@ -263,7 +406,7 @@ exports.listMyApplications = async (req, res) => {
 
 /**
  * GET /api/affiliates/buyer/resumen
- * FIX: usa resolveDueDate en vez de sale.dueDate crudo (nunca manda null).
+ * Ahora agrupado por TIENDA.
  */
 exports.getEarningsSummary = async (req, res) => {
   try {
@@ -281,19 +424,33 @@ exports.getEarningsSummary = async (req, res) => {
     let totalEarned = 0;
     let totalPending = 0;
     let totalCollected = 0;
-    const pendingSales = [];
     const urgentSales = [];
-    const paidSales = [];
+    const storeMap = new Map();
 
     for (const sale of sales) {
+      const sellerKey = String(sale.seller);
+      if (!storeMap.has(sellerKey)) {
+        storeMap.set(sellerKey, {
+          sellerId: sale.seller,
+          seller: mapSellerData(sellerDataById.get(sellerKey)),
+          totalEarned: 0,
+          totalPending: 0,
+          totalCollected: 0,
+          pendingSales: [],
+          paidSales: [],
+        });
+      }
+      const storeEntry = storeMap.get(sellerKey);
+
       totalEarned += sale.commissionAmount;
+      storeEntry.totalEarned += sale.commissionAmount;
 
       if (sale.paid) {
         totalCollected += sale.commissionAmount;
-        paidSales.push({
+        storeEntry.totalCollected += sale.commissionAmount;
+        storeEntry.paidSales.push({
           saleId: sale._id,
           productName: sale.productName,
-          seller: mapSellerData(sellerDataById.get(String(sale.seller))),
           date: sale.date,
           paidAt: sale.paidAt,
           quantity: sale.quantity,
@@ -306,12 +463,12 @@ exports.getEarningsSummary = async (req, res) => {
       }
 
       totalPending += sale.commissionAmount;
+      storeEntry.totalPending += sale.commissionAmount;
       const dueDate = resolveDueDate(sale);
       const daysRemaining = daysBetween(now, dueDate);
       const item = {
         saleId: sale._id,
         productName: sale.productName,
-        seller: mapSellerData(sellerDataById.get(String(sale.seller))),
         date: sale.date,
         dueDate,
         daysRemaining,
@@ -322,21 +479,29 @@ exports.getEarningsSummary = async (req, res) => {
         paymentDisputed: sale.rejected,
         disputeReason: sale.rejectionReason || null,
       };
-      pendingSales.push(item);
-      if (daysRemaining <= 5) urgentSales.push(item);
+      storeEntry.pendingSales.push(item);
+      if (daysRemaining <= 5) {
+        urgentSales.push({ ...item, seller: storeEntry.seller });
+      }
     }
 
-    pendingSales.sort((a, b) => a.daysRemaining - b.daysRemaining);
+    const stores = Array.from(storeMap.values())
+      .filter((s) => s.seller)
+      .map((s) => {
+        s.pendingSales.sort((a, b) => a.daysRemaining - b.daysRemaining);
+        s.paidSales.sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
+        return s;
+      })
+      .sort((a, b) => b.totalPending - a.totalPending);
+
     urgentSales.sort((a, b) => a.daysRemaining - b.daysRemaining);
-    paidSales.sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
 
     return res.status(200).json({
       totalEarned,
       totalPending,
       totalCollected,
-      pendingSales,
+      stores,
       urgentSales,
-      paidSales,
     });
   } catch (err) {
     console.error('[affiliateBuyerController.getEarningsSummary]', err);
@@ -551,3 +716,4 @@ exports.rejectPayment = async (req, res) => {
     return res.status(500).json({ message: 'Error al rechazar el pago de la venta' });
   }
 };
+
