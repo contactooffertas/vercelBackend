@@ -29,37 +29,6 @@ const { router: pushRoutes } = require('./routes/pushRoute');
 const app = express();
 connectDB();
 
-// ── Ruta de test: crea una AffiliateSale de prueba para chequear la DB ─────────
-// ⚠️ Antes esto era un script suelto con un main() que se auto-ejecutaba al
-// importar el archivo (rompía el deploy en Vercel). Ahora es funcional pero
-// SOLO corre cuando entrás a esta ruta a propósito, no al levantar el server.
-// Usa la conexión que ya abre connectDB() arriba, no abre una segunda.
-// Border la ruta (o comentá el app.get de abajo) cuando termines de testear.
-const AffiliateSale = require('./models/AffiliateSale');
-const mongoose = require('mongoose');
-
-app.get('/api/test-affiliate-sale', async (req, res) => {
-  try {
-    const fakeId = new mongoose.Types.ObjectId();
-    const sale = await AffiliateSale.create({
-      application: fakeId,
-      offer: fakeId,
-      seller: fakeId,
-      affiliate: fakeId,
-      productName: 'TEST PRODUCTO',
-      quantity: 1,
-      unitPrice: 100,
-      commissionPercentage: 10,
-      commissionAmount: 10,
-    });
-    console.log('✅ SE CREÓ:', sale._id.toString());
-    res.status(200).json({ status: 'ok', createdId: sale._id.toString() });
-  } catch (err) {
-    console.error('❌ FALLÓ AL CREAR:', err.message);
-    res.status(500).json({ status: 'error', message: err.message });
-  }
-});
-
 // ── Middlewares globales ──────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
   "https://ofertas-lime-ten.vercel.app",
