@@ -12,8 +12,8 @@ const {
   getProfile,
   updateProfile,
   listMySales,
+  getNotificationBadge,
 } = require('../authController/affiliateBuyerController');
-
 router.get('/stores', authMiddleware, getAvailableStores);
 router.get('/stores/:sellerId/products', authMiddleware, getStoreProducts);
 router.post('/offers/:offerId/apply', authMiddleware, applyToOffer);
@@ -23,5 +23,5 @@ router.patch('/sales/:saleId/reject-payment', authMiddleware, rejectPayment);
 router.get('/mis-ventas', authMiddleware, listMySales);
 router.get('/perfil', authMiddleware, getProfile);
 router.patch('/perfil', authMiddleware, updateProfile);
-
+router.get('/notifications-badge', authMiddleware, getNotificationBadge);
 module.exports = router;
