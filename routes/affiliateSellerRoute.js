@@ -20,8 +20,8 @@ const {
   getProfile,
   updateProfile,
   listOfferSales,
+  getNotificationBadge,
 } = require('../authController/affiliateSellerController');
-
 router.get('/products', authMiddleware, getSellerProducts);
 router.post('/offers', authMiddleware, upsertOffer);
 router.patch('/offers/:offerId/toggle', authMiddleware, toggleOffer);
@@ -39,8 +39,5 @@ router.patch('/sales/:saleId/pay', authMiddleware, markSaleAsPaid);
 router.patch('/sales/:saleId/proof', authMiddleware, updateSaleProof);
 router.get('/perfil', authMiddleware, getProfile);
 router.patch('/perfil', authMiddleware, updateProfile);
-
+router.get('/notifications-badge', authMiddleware, getNotificationBadge);
 module.exports = router;
-
-// En index.js agregar:
-// app.use('/api/affiliates/seller', require('./routes/affiliateSellerRoute'));
