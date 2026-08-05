@@ -24,7 +24,7 @@ const transporter = nodemailer.createTransport({
 
 const sendEmail = async (to, subject, text, html) => {
   await transporter.sendMail({
-    from:    `"Mercado Rosario" <contacto.offertas@gmail.com>`,
+    from:    `"Rosario Market" <contacto.offertas@gmail.com>`,
     to,
     subject,
     text,
@@ -42,13 +42,13 @@ function verificationEmailHTML(code, name) {
       <tr><td align="center">
         <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
           <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:36px 40px;text-align:center;">
-            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Mercado<span style="color:#fed7aa;">Rosario</span></h1>
+            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Rosario<span style="color:#fed7aa;">Market</span></h1>
             <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
           </td></tr>
           <tr><td style="padding:40px 40px 32px;">
             <h2 style="margin:0 0 12px;color:#111827;font-size:22px;font-weight:700;">¡Hola, ${name}! 👋</h2>
             <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
-              Gracias por registrarte en Mercado Rosario. Para activar tu cuenta, ingresá el siguiente código:
+              Gracias por registrarte en Rosario Market. Para activar tu cuenta, ingresá el siguiente código:
             </p>
             <div style="background:#fff7ed;border:2px dashed #f97316;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
               <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Código de verificación</p>
@@ -58,7 +58,7 @@ function verificationEmailHTML(code, name) {
             <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">Si no creaste esta cuenta, podés ignorar este email.</p>
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Mercado Rosario. Todos los derechos reservados.</p>
+            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
           </td></tr>
         </table>
       </td></tr>
@@ -75,7 +75,7 @@ function resendEmailHTML(code, name) {
       <tr><td align="center">
         <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
           <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:36px 40px;text-align:center;">
-            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Mercado<span style="color:#fed7aa;">Rosario</span></h1>
+            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Rosario<span style="color:#fed7aa;">Rosario</span>Market</h1>
             <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
           </td></tr>
           <tr><td style="padding:40px 40px 32px;">
@@ -91,7 +91,7 @@ function resendEmailHTML(code, name) {
             <p style="margin:0;color:#6b7280;font-size:14px;">Si no solicitaste este código, ignorá este mensaje.</p>
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Mercado Rosario. Todos los derechos reservados.</p>
+            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
           </td></tr>
         </table>
       </td></tr>
@@ -108,7 +108,7 @@ function forgotPasswordHTML(code, name) {
       <tr><td align="center">
         <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:560px;width:100%;">
           <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:36px 40px;text-align:center;">
-            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Mercado<span style="color:#fed7aa;">Rosario</span></h1>
+            <h1 style="margin:0;color:#fff;font-size:28px;font-weight:900;">Rosario<span style="color:#fed7aa;">Market</span></h1>
             <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
           </td></tr>
           <tr><td style="padding:40px 40px 32px;">
@@ -128,7 +128,7 @@ function forgotPasswordHTML(code, name) {
             </div>
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Mercado Rosario. Todos los derechos reservados.</p>
+            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
           </td></tr>
         </table>
       </td></tr>
@@ -158,7 +158,7 @@ function passwordChangedHTML(name) {
             </div>
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Mercado Rosario. Todos los derechos reservados.</p>
+            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
           </td></tr>
         </table>
       </td></tr>
@@ -198,7 +198,7 @@ router.post('/register', async (req, res) => {
     try {
       await sendEmail(
         email,
-        '🔐 Código de verificación — Mercado Rosario',
+        '🔐 Código de verificación — Rosario Market',
         `Tu código de verificación es: ${code}. Válido por 10 minutos.`,
         verificationEmailHTML(code, name)
       );
@@ -263,7 +263,7 @@ router.post('/resend', async (req, res) => {
     try {
       await sendEmail(
         email,
-        '🔄 Nuevo código de verificación — Mercado Rosario',
+        '🔄 Nuevo código de verificación — Rosario Market',
         `Tu nuevo código es: ${newCode}. Válido por 10 minutos.`,
         resendEmailHTML(newCode, user.name)
       );
@@ -301,7 +301,7 @@ router.post('/forgot-password', async (req, res) => {
     try {
       await sendEmail(
         email,
-        '🔑 Recuperar contraseña — Mercado Rosario',
+        '🔑 Recuperar contraseña — Rosario Market',
         `Tu código para restablecer la contraseña es: ${code}. Válido por 15 minutos.`,
         forgotPasswordHTML(code, user.name)
       );
@@ -346,7 +346,7 @@ router.post('/reset-password', async (req, res) => {
     try {
       await sendEmail(
         email,
-        '✅ Contraseña actualizada — Mercado Rosario',
+        '✅ Contraseña actualizada — Rosario Market',
         'Tu contraseña fue actualizada correctamente.',
         passwordChangedHTML(user.name)
       );
