@@ -729,3 +729,29 @@ exports.rejectPayment = async (req, res) => {
     return res.status(500).json({ message: 'Error al rechazar el pago de la venta' });
   }
 };
+
+
+exports.getNotificationBadge = async (req, res) => {
+  try {
+    if (!isBuyer(req)) return res.status(200).json({ count: 0 });
+
+    const buyerId = getBuyerId(req);
+    const now = new Date();
+
+    const pendingSales = await AffiliateSale.find({ affiliate: buyerId, paid: false })
+      .select('date dueDate createdAt')
+      .lean();
+
+    let count = 0;
+    for (const sale of pendingSales) {
+      const dueDate = resolveDueDate(sale);
+      const daysRemaining = daysBetween(now, dueDate);
+      if (daysRemaining <= 5) count += 1;
+    }
+
+    return res.status(200).json({ count });
+  } catch (err) {
+    console.error('[affiliateBuyerController.getNotificationBadge]', err);
+    return res.status(200).json({ count: 0 });
+  }
+};
