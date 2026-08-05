@@ -873,3 +873,29 @@ exports.listOfferSales = async (req, res) => {
     return res.status(500).json({ message: 'Error al obtener las ventas' });
   }
 };
+
+exports.getNotificationBadge = async (req, res) => {
+  try {
+    if (!isSeller(req)) return res.status(200).json({ count: 0 });
+
+    const sellerId = getSellerId(req);
+    const now = new Date();
+
+    const [pendingApps, unpaidSales] = await Promise.all([
+      AffiliateOfferApplication.countDocuments({ seller: sellerId, status: 'pending' }),
+      AffiliateSale.find({ seller: sellerId, paid: false }).select('date dueDate createdAt rejected').lean(),
+    ]);
+
+    let urgentOrDisputed = 0;
+    for (const sale of unpaidSales) {
+      const dueDate = resolveDueDate(sale);
+      const daysRemaining = daysBetween(now, dueDate);
+      if (daysRemaining <= 5 || sale.rejected) urgentOrDisputed += 1;
+    }
+
+    return res.status(200).json({ count: pendingApps + urgentOrDisputed });
+  } catch (err) {
+    console.error('[affiliateSellerController.getNotificationBadge]', err);
+    return res.status(200).json({ count: 0 });
+  }
+};
