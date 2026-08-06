@@ -733,25 +733,41 @@ exports.rejectPayment = async (req, res) => {
 
 exports.getNotificationBadge = async (req, res) => {
   try {
-    if (!isBuyer(req)) return res.status(200).json({ count: 0 });
+    if (!isBuyer(req)) {
+      return res.status(200).json({ count: 0, pendingApplications: 0, urgentSales: 0, newStores: 0 });
+    }
 
     const buyerId = getBuyerId(req);
     const now = new Date();
 
-    const pendingSales = await AffiliateSale.find({ affiliate: buyerId, paid: false })
-      .select('date dueDate createdAt')
-      .lean();
+    const [pendingApplications, unpaidSales, newStoreSellers] = await Promise.all([
+      AffiliateOfferApplication.countDocuments({ buyer: buyerId, status: 'pending' }),
+      AffiliateSale.find({ affiliate: buyerId, paid: false }).select('date dueDate createdAt').lean(),
+      AffiliateOffer.aggregate([
+        { $match: { active: true } },
+        { $group: { _id: '$seller', joinedAt: { $min: '$createdAt' } } },
+        { $match: { joinedAt: { $gte: new Date(now.getTime() - NEW_STORE_WINDOW_MS) } } },
+        { $count: 'total' },
+      ]),
+    ]);
 
-    let count = 0;
-    for (const sale of pendingSales) {
+    let urgentSales = 0;
+    for (const sale of unpaidSales) {
       const dueDate = resolveDueDate(sale);
       const daysRemaining = daysBetween(now, dueDate);
-      if (daysRemaining <= 5) count += 1;
+      if (daysRemaining <= 5) urgentSales += 1;
     }
 
-    return res.status(200).json({ count });
+    const newStores = newStoreSellers[0]?.total || 0;
+
+    return res.status(200).json({
+      count: pendingApplications + urgentSales,
+      pendingApplications,
+      urgentSales,
+      newStores,
+    });
   } catch (err) {
     console.error('[affiliateBuyerController.getNotificationBadge]', err);
-    return res.status(200).json({ count: 0 });
+    return res.status(200).json({ count: 0, pendingApplications: 0, urgentSales: 0, newStores: 0 });
   }
 };
