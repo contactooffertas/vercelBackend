@@ -876,12 +876,14 @@ exports.listOfferSales = async (req, res) => {
 
 exports.getNotificationBadge = async (req, res) => {
   try {
-    if (!isSeller(req)) return res.status(200).json({ count: 0 });
+    if (!isSeller(req)) {
+      return res.status(200).json({ count: 0, pendingApplications: 0, urgentOrDisputed: 0 });
+    }
 
     const sellerId = getSellerId(req);
     const now = new Date();
 
-    const [pendingApps, unpaidSales] = await Promise.all([
+    const [pendingApplications, unpaidSales] = await Promise.all([
       AffiliateOfferApplication.countDocuments({ seller: sellerId, status: 'pending' }),
       AffiliateSale.find({ seller: sellerId, paid: false }).select('date dueDate createdAt rejected').lean(),
     ]);
@@ -893,9 +895,13 @@ exports.getNotificationBadge = async (req, res) => {
       if (daysRemaining <= 5 || sale.rejected) urgentOrDisputed += 1;
     }
 
-    return res.status(200).json({ count: pendingApps + urgentOrDisputed });
+    return res.status(200).json({
+      count: pendingApplications + urgentOrDisputed,
+      pendingApplications,
+      urgentOrDisputed,
+    });
   } catch (err) {
     console.error('[affiliateSellerController.getNotificationBadge]', err);
-    return res.status(200).json({ count: 0 });
+    return res.status(200).json({ count: 0, pendingApplications: 0, urgentOrDisputed: 0 });
   }
 };
