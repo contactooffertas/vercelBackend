@@ -2,6 +2,7 @@
 //
 const mongoose = require('mongoose');
 const Product = require('../models/productoModel');
+const Business = require('../models/businessModel');
 const AffiliateOffer = require('../models/AffiliateOffer');
 const AffiliateOfferApplication = require('../models/AffiliateOfferApplication');
 const AffiliateSellerApplication = require('../models/AffiliateSellerApplication');
@@ -29,7 +30,21 @@ function buildAffiliateLink(sellerId, productId, affiliateCode) {
   return `${BACKEND_URL}/p/${productId}?ref=${affiliateCode}`;
 }
 
-function mapSellerData(sellerApp) {
+// ── Logo real del negocio ────────────────────────────────────────────────
+// El logo NO vive en AffiliateSellerApplication (eso es solo el formulario
+// de inscripción al programa). Vive en el modelo Business, colgado del
+// mismo User que en este controller usamos como "sellerId" (Business.owner
+// === sellerApp.user === AffiliateOffer.seller). Por eso hace falta este
+// join manual: se resuelve en batch con un solo find() por sellerIds.
+async function getLogosBySellerIds(sellerIds) {
+  if (!sellerIds || sellerIds.length === 0) return new Map();
+  const businesses = await Business.find({ owner: { $in: sellerIds } })
+    .select('owner logo')
+    .lean();
+  return new Map(businesses.map((b) => [String(b.owner), b.logo || null]));
+}
+
+function mapSellerData(sellerApp, logo) {
   if (!sellerApp) return null;
   return {
     sellerId: sellerApp.user,
@@ -39,6 +54,7 @@ function mapSellerData(sellerApp) {
     phone: sellerApp.phone,
     description: sellerApp.description,
     paymentTermDays: sellerApp.paymentTermDays === 15 ? 15 : 30,
+    logo: logo || null,
   };
 }
 
@@ -101,7 +117,10 @@ exports.getAvailableStores = async (req, res) => {
     ]);
 
     const sellerIds = grouped.map((g) => g._id);
-    const sellerApplications = await AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean();
+    const [sellerApplications, logoByOwner] = await Promise.all([
+      AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean(),
+      getLogosBySellerIds(sellerIds),
+    ]);
     const sellerDataById = new Map(sellerApplications.map((s) => [String(s.user), s]));
 
     let stores = grouped
@@ -127,6 +146,7 @@ exports.getAvailableStores = async (req, res) => {
           commissionMin: g.minCommission,
           commissionMax: g.maxCommission,
           joinedAt: g.joinedAt,
+          logo: logoByOwner.get(String(g._id)) || null,
         };
       });
 
@@ -172,7 +192,10 @@ exports.getStoreProducts = async (req, res) => {
     const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 5));
     const search = (req.query.search || '').trim();
 
-    const sellerApp = await AffiliateSellerApplication.findOne({ user: sellerId }).lean();
+    const [sellerApp, sellerBusiness] = await Promise.all([
+      AffiliateSellerApplication.findOne({ user: sellerId }).lean(),
+      Business.findOne({ owner: sellerId }).select('logo').lean(),
+    ]);
     if (!sellerApp) return res.status(404).json({ message: 'Tienda no encontrada' });
 
     const filter = { active: true, seller: sellerId };
@@ -230,6 +253,7 @@ exports.getStoreProducts = async (req, res) => {
         phone: sellerApp.phone,
         description: sellerApp.description,
         paymentTermDays: sellerApp.paymentTermDays === 15 ? 15 : 30,
+        logo: sellerBusiness?.logo || null,
       },
     });
   } catch (err) {
@@ -331,7 +355,10 @@ exports.listMyApplications = async (req, res) => {
       .lean();
 
     const sellerIds = [...new Set(applications.map((a) => String(a.seller)))];
-    const sellerApplications = await AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean();
+    const [sellerApplications, logoByOwner] = await Promise.all([
+      AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean(),
+      getLogosBySellerIds(sellerIds),
+    ]);
     const sellerDataById = new Map(sellerApplications.map((s) => [String(s.user), s]));
 
     const appIds = applications.map((a) => a._id);
@@ -356,7 +383,7 @@ exports.listMyApplications = async (req, res) => {
       if (!storeMap.has(sellerKey)) {
         storeMap.set(sellerKey, {
           sellerId: a.seller,
-          seller: mapSellerData(sellerDataById.get(sellerKey)),
+          seller: mapSellerData(sellerDataById.get(sellerKey), logoByOwner.get(sellerKey)),
           latestAppliedAt: a.appliedAt,
           applications: [],
           totalSalesAmount: 0,
@@ -431,7 +458,10 @@ exports.getEarningsSummary = async (req, res) => {
     const sales = await AffiliateSale.find({ affiliate: buyerId }).sort({ date: -1 }).lean();
 
     const sellerIds = [...new Set(sales.map((s) => String(s.seller)))];
-    const sellerApplications = await AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean();
+    const [sellerApplications, logoByOwner] = await Promise.all([
+      AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean(),
+      getLogosBySellerIds(sellerIds),
+    ]);
     const sellerDataById = new Map(sellerApplications.map((s) => [String(s.user), s]));
 
     let totalEarned = 0;
@@ -445,7 +475,7 @@ exports.getEarningsSummary = async (req, res) => {
       if (!storeMap.has(sellerKey)) {
         storeMap.set(sellerKey, {
           sellerId: sale.seller,
-          seller: mapSellerData(sellerDataById.get(sellerKey)),
+          seller: mapSellerData(sellerDataById.get(sellerKey), logoByOwner.get(sellerKey)),
           totalEarned: 0,
           totalPending: 0,
           totalCollected: 0,
@@ -640,7 +670,10 @@ exports.listMySales = async (req, res) => {
       .lean();
 
     const sellerIds = sales.map((s) => s.seller);
-    const sellerApplications = await AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean();
+    const [sellerApplications, logoByOwner] = await Promise.all([
+      AffiliateSellerApplication.find({ user: { $in: sellerIds } }).lean(),
+      getLogosBySellerIds(sellerIds),
+    ]);
     const sellerDataById = new Map(sellerApplications.map((s) => [String(s.user), s]));
 
     const items = sales.map((s) => ({
@@ -658,7 +691,7 @@ exports.listMySales = async (req, res) => {
       totalAmount: s.quantity * s.unitPrice,
       commissionPercentage: s.commissionPercentage,
       commissionAmount: s.commissionAmount,
-      seller: mapSellerData(sellerDataById.get(String(s.seller))),
+      seller: mapSellerData(sellerDataById.get(String(s.seller)), logoByOwner.get(String(s.seller))),
     }));
 
     const totalsMatch = { affiliate: new mongoose.Types.ObjectId(buyerId) };
