@@ -1,5 +1,4 @@
-// authController/affiliateBuyerController.js
-//
+//authController/affiliateBuyerController.js//
 const mongoose = require('mongoose');
 const Product = require('../models/productoModel');
 const Business = require('../models/businessModel');
