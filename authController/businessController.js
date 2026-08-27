@@ -358,6 +358,57 @@ exports.getBusinessSocialStatus = async (req, res) => {
   }
 };
 
+/* ── NEGOCIOS CERCANOS 
+                                                exports.getNearbyBusinesses = async (req, res) => {
+  try {
+    const lat    = parseFloat(req.query.lat);
+    const lng    = parseFloat(req.query.lng);
+    const radius = parseInt(req.query.radius) || 3000;
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ message: "Se requieren lat y lng válidos" });
+    }
+    const businesses = await Business.aggregate([
+      {
+        $geoNear: {
+          near:          { type: "Point", coordinates: [lng, lat] },
+          distanceField: "distanceMeters",
+          maxDistance:   radius,
+          spherical:     true,
+          query:         { blocked: { $ne: true } },
+        },
+      },
+      { $limit: 20 },
+      {
+        $project: {
+          name: 1, description: 1, city: 1, logo: 1, rating: 1,
+          totalRatings: 1, verified: 1, categories: 1, address: 1,
+          phone: 1, followers: 1, distanceMeters: 1,
+        },
+      },
+    ]);
+    const result = businesses.map((b) => ({
+      ...b,
+      distanceLabel: b.distanceMeters < 1000
+        ? `${Math.round(b.distanceMeters)} m`
+        : `${(b.distanceMeters / 1000).toFixed(1)} km`,
+    }));
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+───────────────────────────────────────────────────── */
+
+
+
+
+
+
+
+
+
+
+
 /* ── NEGOCIOS CERCANOS ───────────────────────────────────────────────────── */
 exports.getNearbyBusinesses = async (req, res) => {
   try {
@@ -383,6 +434,7 @@ exports.getNearbyBusinesses = async (req, res) => {
           name: 1, description: 1, city: 1, logo: 1, rating: 1,
           totalRatings: 1, verified: 1, categories: 1, address: 1,
           phone: 1, followers: 1, distanceMeters: 1,
+          location: 1, // ← nuevo: [lng, lat] para recalcular distancia en vivo del lado del cliente
         },
       },
     ]);
