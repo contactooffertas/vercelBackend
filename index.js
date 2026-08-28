@@ -31,6 +31,7 @@ connectDB();
 
 // ── Middlewares globales ──────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
+  "https://rosariomarket.com.ar",
   "https://ofertas-lime-ten.vercel.app",
   "http://localhost:3000",
 ];
