@@ -7,7 +7,7 @@ const transporter = nodemailer.createTransport({
   secure: true,
   auth: {
     user: "contacto.offertas@gmail.com",
-    pass: "dikd rskl kdcq qkpy",
+    pass: "mure nbuc fqbh iwry",
   },
   connectionTimeout: 10000,
   greetingTimeout:   10000,
