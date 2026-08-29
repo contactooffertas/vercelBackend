@@ -4,6 +4,7 @@ const express   = require('express');
 const cors      = require('cors');
 const path      = require('path');
 const connectDB = require('./config/db');
+
 // ── Rutas ─────────────────────────────────────────────────────────────────────
 const authRoutes           = require('./routes/authRoute');
 const userRoutes           = require('./routes/userRoute');
