@@ -569,10 +569,10 @@ exports.getPublicProducts = async (req, res) => {
 exports.getRandomProducts = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 20;
-    const { lat, lng, userId, userRadius, excludeIds } = req.query;
+    const { lat, lng, userId, userRadius, excludeIds, category, search } = req.query;
 
     const parsedExclude = excludeIds ? JSON.parse(excludeIds) : [];
-    const matchQuery    = buildOrganicQuery(parsedExclude);
+    const matchQuery    = buildOrganicQuery(parsedExclude, category, search);
 
     const raw       = await Product.aggregate([{ $match: matchQuery }, { $sample: { size: limit * 3 } }]);
     const populated = await Product.populate(raw, { path: "businessId", select: BIZ_SELECT });
