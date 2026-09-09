@@ -6,6 +6,7 @@ const path      = require('path');
 const connectDB = require('./config/db');
 
 // ── Rutas ─────────────────────────────────────────────────────────────────────
+const registerRecoveryRoutes = require('./routes/registerRecoveryRoute');
 const authRoutes           = require('./routes/authRoute');
 const userRoutes           = require('./routes/userRoute');
 const busiRoutes           = require('./routes/businessRoute');
@@ -67,6 +68,8 @@ app.get('/', (req, res) => {
 app.use('/p', shareRoutes);
 
 // ── Rutas de la API ───────────────────────────────────────────────────────────
+// Registro robusto va antes del router histórico. Solo intercepta POST /register.
+app.use('/api/auth',            registerRecoveryRoutes);
 app.use('/api/auth',            authRoutes);
 app.use('/api/user',            userRoutes);
 app.use('/api/business',        busiRoutes);
