@@ -18,14 +18,16 @@ const reportRoutes         = require('./routes/reportRoute');
 const announcementRoutes   = require('./routes/announcementRoute');
 const terminosRoutes       = require('./routes/terminosRoute');
 const eliminaUsuarioRoutes = require('./routes/eliminarUsuarioRoute');
-const shareRoutes          = require('./routes/shareRoute'); 
-const trackingRoutes = require('./routes/trackingRoutes');
-const affiliateRoutes = require('./routes/affiliateRoute')
+const shareRoutes          = require('./routes/shareRoute');
+const trackingRoutes       = require('./routes/trackingRoutes');
+const affiliateRoutes      = require('./routes/affiliateRoute');
 const affiliateBuyerRoutes = require('./routes/affiliateBuyerRoute');
 const affiliateSellerRoutes = require('./routes/affiliateSellerRoute');
 
+// Se carga primero pushRoute para inicializar web-push/VAPID una sola vez.
 const { router: pushRoutes } = require('./routes/pushRoute');
-// ─────────────────────────────────────────────────────────────────────────────
+const geoPushRoutes = require('./routes/geoPushRoute');
+
 const app = express();
 connectDB();
 
@@ -54,9 +56,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-
 // NOTA: Vercel no soporta archivos estáticos persistentes en /uploads.
-// Si usas subida de imágenes, migra a un servicio externo (S3, Cloudinary, etc.).
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── Health check ──────────────────────────────────────────────────────────────
@@ -64,7 +64,6 @@ app.get('/', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Deploy hecho Offertas conectado (Vercel)' });
 });
 
-// ── URL linda para compartir productos: https://tu-backend.vercel.app/p/<id> ──
 app.use('/p', shareRoutes);
 
 // ── Rutas de la API ───────────────────────────────────────────────────────────
@@ -76,23 +75,19 @@ app.use('/api/cart',            cartRoutes);
 app.use('/api/orders',          orderRoutes);
 app.use('/api/chat',            chatRoutes);
 app.use('/api/push',            pushRoutes);
+app.use('/api/push-geo',        geoPushRoutes);
 app.use('/api/reports',         reportRoutes);
 app.use('/api/admin',           adminRoutes);
 app.use('/api/announcements',   announcementRoutes);
 app.use('/api/terminos',        terminosRoutes);
 app.use('/api/elimina-usuario', eliminaUsuarioRoutes);
-app.use('/api/tracking', trackingRoutes);
-app.use('/api/affiliates', affiliateRoutes);
+app.use('/api/tracking',        trackingRoutes);
+app.use('/api/affiliates',      affiliateRoutes);
 app.use('/api/affiliates/buyer', affiliateBuyerRoutes);
 app.use('/api/affiliates/seller', affiliateSellerRoutes);
 
-
-
-// ── Exportar app para Vercel (serverless)   ─────────────────────────────────────
-// En Vercel NO se llama a app.listen(); el runtime lo maneja automáticamente.
 module.exports = app;
 
-// ── Arranque local (npm run dev / node server.js) ─────────────────────────────
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
