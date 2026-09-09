@@ -1,6 +1,28 @@
 // models/userModel.js
 const mongoose = require("mongoose");
 
+// Un GeoJSON Point solo debe existir cuando tenemos coordenadas reales.
+// Mantenerlo como subdocumento opcional evita crear { type: "Point" } vacío
+// durante el registro y que el índice 2dsphere rechace el usuario.
+const geoPointSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["Point"],
+      required: true,
+    },
+    coordinates: {
+      type: [Number],
+      required: true,
+      validate: {
+        validator: (value) => Array.isArray(value) && value.length === 2,
+        message: "geoLocation.coordinates debe contener [lng, lat]",
+      },
+    },
+  },
+  { _id: false },
+);
+
 const userSchema = new mongoose.Schema(
   {
     name:     String,
@@ -46,11 +68,8 @@ const userSchema = new mongoose.Schema(
     lat:             { type: Number,  default: null  },
     lng:             { type: Number,  default: null  },
     locationEnabled: { type: Boolean, default: false },
-    geoLocation: {
-      type: { type: String, enum: ["Point"], default: "Point" },
-      coordinates: { type: [Number], default: undefined },
-    },
-    lastLocationAt: { type: Date, default: null },
+    geoLocation:     { type: geoPointSchema, default: undefined },
+    lastLocationAt:  { type: Date, default: null },
 
     // ── Notificaciones ────────────────────────────────────────────────────
     notificationsEnabled: { type: Boolean, default: false },
