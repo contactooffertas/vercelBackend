@@ -60,12 +60,10 @@ async function sendPayloadToSubscriptions(subs, payload) {
 
 async function notifyNearbyBusinessesForUser({ userId, lat, lng }) {
   const user = await User.findById(userId)
-    .select("_id notificationsEnabled pushEnabled")
+    .select("_id notificationsEnabled")
     .lean();
 
-  if (!user?.notificationsEnabled || !user?.pushEnabled) {
-    return { delivered: 0 };
-  }
+  if (!user?.notificationsEnabled) return { delivered: 0 };
 
   const subs = await PushSub.find({ user: userId }).lean();
   if (!subs.length) return { delivered: 0 };
@@ -137,8 +135,6 @@ async function notifyNearbyBusinessesForUser({ userId, lat, lng }) {
         { lastSentAt: new Date(), lastDistanceMeters: meters },
         { upsert: true, new: true },
       );
-
-      // Máximo una alerta de cercanía por sincronización.
       return { delivered, businessId: business._id, distanceMeters: meters };
     }
   }
@@ -148,10 +144,7 @@ async function notifyNearbyBusinessesForUser({ userId, lat, lng }) {
 
 async function notifyProductAudience(args) {
   try {
-    const {
-      businessId,
-      productId,
-    } = args;
+    const { businessId, productId } = args;
 
     const [business, product] = await Promise.all([
       Business.findById(businessId)
@@ -190,7 +183,6 @@ async function notifyProductAudience(args) {
         _id: { $ne: ownerUserId },
         locationEnabled: true,
         notificationsEnabled: true,
-        pushEnabled: true,
         lastLocationAt: {
           $gte: new Date(Date.now() - PRODUCT_LOCATION_MAX_AGE_MS),
         },
