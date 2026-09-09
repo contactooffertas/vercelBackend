@@ -3,6 +3,14 @@ const express = require("express");
 const router  = express.Router();
 const auth    = require("../middleware/authMiddleware");
 const upload  = require("../middleware/upload");
+
+// productController obtiene notifyBusinessFollowers dinámicamente desde
+// pushRoute al crear un producto. Reemplazamos solo esa función exportada por
+// el nuevo fan-out geográfico, sin tocar la configuración VAPID existente.
+const pushModule = require("./pushRoute");
+const { notifyProductAudience } = require("../utils/geoPushService");
+pushModule.notifyBusinessFollowers = notifyProductAudience;
+
 const {
   // Rutas privadas
   getMyProducts,
