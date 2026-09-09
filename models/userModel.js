@@ -42,22 +42,29 @@ const userSchema = new mongoose.Schema(
     reporterReputation: { type: Number, default: 0 },
 
     // ── Ubicación ─────────────────────────────────────────────────────────
+    // lat/lng se mantienen por compatibilidad con el frontend actual.
     lat:             { type: Number,  default: null  },
     lng:             { type: Number,  default: null  },
     locationEnabled: { type: Boolean, default: false },
+    geoLocation: {
+      type: { type: String, enum: ["Point"], default: "Point" },
+      coordinates: { type: [Number], default: undefined },
+    },
+    lastLocationAt: { type: Date, default: null },
 
     // ── Notificaciones ────────────────────────────────────────────────────
     notificationsEnabled: { type: Boolean, default: false },
     pushEnabled:          { type: Boolean, default: false },
 
     // ── Términos y Condiciones ────────────────────────────────────────────
-    // true  = el usuario aceptó explícitamente al registrarse
-    // false = no aceptó (no debería llegar a crearse, pero queda como guardia)
     terminosAceptados:   { type: Boolean, default: false },
-    // fecha exacta en que aceptó — útil para auditoría legal
     terminosAceptadosAt: { type: Date,    default: null  },
   },
   { timestamps: true },
 );
+
+// Fundamental para buscar usuarios cercanos sin recorrer toda la colección.
+userSchema.index({ geoLocation: "2dsphere" }, { sparse: true });
+userSchema.index({ locationEnabled: 1, notificationsEnabled: 1 });
 
 module.exports = mongoose.model("User", userSchema);
