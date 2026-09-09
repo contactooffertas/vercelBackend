@@ -2,6 +2,7 @@ const webpush = require("web-push");
 const PushSub = require("../models/pushsuscriptionmodel");
 const User = require("../models/userModel");
 const Business = require("../models/businessModel");
+const Product = require("../models/productoModel");
 const NearbyPushLog = require("../models/nearbyPushLogModel");
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://www.rosariomarket.com.ar";
@@ -137,7 +138,7 @@ async function notifyNearbyBusinessesForUser({ userId, lat, lng }) {
         { upsert: true, new: true },
       );
 
-      // Máximo una notificación de cercanía por sincronización.
+      // Máximo una alerta de cercanía por sincronización.
       return { delivered, businessId: business._id, distanceMeters: meters };
     }
   }
@@ -145,25 +146,34 @@ async function notifyNearbyBusinessesForUser({ userId, lat, lng }) {
   return { delivered: 0 };
 }
 
-async function notifyProductAudience({
-  businessId,
-  businessName,
-  businessLogo,
-  ownerUserId,
-  productName,
-  productId,
-  productImageUrl,
-  price,
-  originalPrice,
-  discount,
-  category,
-  stock,
-}) {
+async function notifyProductAudience(args) {
   try {
-    const business = await Business.findById(businessId)
-      .select("_id name logo location")
-      .lean();
-    if (!business) return;
+    const {
+      businessId,
+      productId,
+    } = args;
+
+    const [business, product] = await Promise.all([
+      Business.findById(businessId)
+        .select("_id name logo location owner")
+        .lean(),
+      Product.findById(productId)
+        .select("_id name image price originalPrice discount category stock")
+        .lean(),
+    ]);
+
+    if (!business || !product) return;
+
+    const businessName = args.businessName || business.name;
+    const businessLogo = args.businessLogo || business.logo;
+    const ownerUserId = args.ownerUserId || business.owner;
+    const productName = args.productName || product.name;
+    const productImageUrl = args.productImageUrl || product.image;
+    const price = args.price ?? product.price;
+    const originalPrice = args.originalPrice ?? product.originalPrice;
+    const discount = args.discount ?? product.discount;
+    const category = args.category || product.category;
+    const stock = args.stock ?? product.stock;
 
     const followers = await User.find({
       followingBusinesses: businessId,
@@ -222,7 +232,7 @@ async function notifyProductAudience({
       title: `🛍️ Nuevo en ${businessName}`,
       body: `${productName}${details.length ? ` · ${details.join(" · ")}` : ""}`,
       url: `/negocio/${businessId}?p=${productId}`,
-      icon: assetUrl(businessLogo || business.logo),
+      icon: assetUrl(businessLogo),
       badge: DEFAULT_BADGE,
       image: productImageUrl ? assetUrl(productImageUrl, undefined) : undefined,
       tag: `producto-${productId}`,
