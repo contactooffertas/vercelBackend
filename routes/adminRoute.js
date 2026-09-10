@@ -1,6 +1,7 @@
 const express = require("express");
 const router  = express.Router();
 const auth    = require("../middleware/authMiddleware");
+const { getAdminFunnel } = require("../authController/adminFunnelController");
 
 const {
   requireAdmin,
@@ -51,6 +52,7 @@ router.use(auth, requireAdmin);
 
 // ── DASHBOARD ────────────────────────────────────────────────────────────────
 router.get("/stats", getDashboardStats);
+router.get("/funnel", getAdminFunnel);
 
 // ── USUARIOS ─────────────────────────────────────────────────────────────────
 router.get("/users",              getAllUsers);
