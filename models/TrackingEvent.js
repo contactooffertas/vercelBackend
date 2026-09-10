@@ -12,7 +12,7 @@ const TrackingEventSchema = new mongoose.Schema({
   event_name: {
     type: String,
     required: true,
-    enum: ['page_enter', 'product_view', 'dwell_time', 'product_click', 'lead_conversion', 'whatsapp_click', 'page_leave']
+    enum: ['page_enter', 'product_view', 'dwell_time', 'product_click', 'lead_conversion', 'whatsapp_click', 'page_leave', 'apk_download', 'apk_update', 'login_success', 'register_success']
   },
 
   properties: { type: Object, default: {} }, // { product_id, category, seconds }
