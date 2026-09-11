@@ -133,6 +133,10 @@ function findForbiddenInObject(value, key = '') {
 async function blockForbiddenContent(req, res, next) {
   if (!['POST', 'PUT', 'PATCH'].includes(req.method)) return next();
 
+  // El administrador necesita poder escribir justamente los términos que
+  // quiere agregar/quitar de la lista de moderación.
+  if (String(req.originalUrl || '').startsWith('/api/admin/search-dictionary/forbidden')) return next();
+
   const found = await findForbiddenInObjectAsync(req.body);
   if (!found) return next();
 
