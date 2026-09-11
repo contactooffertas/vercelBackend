@@ -23,6 +23,9 @@ router.get("/geocode",     geocodePredictive);
 router.get("/nearby",      getNearbyBusinesses);
 router.post("/",           verifyToken, upload.single("logo"), upsertBusiness);
 router.get("/my-business", verifyToken, getMyBusiness);
+router.get("/payment-settings", verifyToken, getMyPaymentSettings);
+router.put("/payment-settings", verifyToken, updateMyPaymentSettings);
+router.get("/:id/payment-methods", getPublicPaymentMethods);
  router.post('/:id/appeal', verifyToken, submitBusinessAppeal);
 // Social
 router.post("/:id/follow",     verifyToken, followBusiness);
