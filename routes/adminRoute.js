@@ -52,7 +52,8 @@ router.use(auth, requireAdmin);
 
 // ── DASHBOARD ────────────────────────────────────────────────────────────────
 router.get("/stats", getDashboardStats);
-router.get("/funnel", getAdminFunnel);\nrouter.delete("/funnel", clearAdminFunnel);
+router.get("/funnel", getAdminFunnel);
+router.delete("/funnel", clearAdminFunnel);
 
 // ── USUARIOS ─────────────────────────────────────────────────────────────────
 router.get("/users",              getAllUsers);
