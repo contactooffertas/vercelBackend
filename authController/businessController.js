@@ -1,6 +1,8 @@
 const Business = require("../models/businessModel");
 const User = require("../models/userModel");
 const Product = require("../models/productoModel");
+const Category = require("../models/categoryModel");
+const { resolveIntent } = require("../utils/searchService");
 const cloudinary = require("../config/cloudinary");
 const fs = require("fs");
 const { findForbiddenInObject } = require("../utils/contentPolicy");
@@ -154,10 +156,12 @@ exports.upsertBusiness = async (req, res) => {
     if (req.body.categories) {
       try { categories = JSON.parse(req.body.categories); }
       catch { categories = Array.isArray(req.body.categories) ? req.body.categories : [req.body.categories]; }
+      const activeCategoryDocs = await Category.find({ active: true }).select("slug").lean();
+      const validCategorySlugs = new Set(activeCategoryDocs.map((item) => item.slug));
       categories = categories
         .map(normalizeCategory)
-        .filter((c) => VALID_CATEGORIES.includes(c))
-        .filter((c, i, arr) => arr.indexOf(c) === i)
+        .filter((value) => validCategorySlugs.has(value))
+        .filter((value, i, arr) => arr.indexOf(value) === i)
         .slice(0, 2);
     }
 
@@ -420,38 +424,97 @@ exports.getBusinessSocialStatus = async (req, res) => {
 exports.getNearbyBusinesses = async (req, res) => {
   try {
     await require("../config/db")();
-    const lat    = parseFloat(req.query.lat);
-    const lng    = parseFloat(req.query.lng);
+
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
     const radius = parseInt(req.query.radius) || 3000;
+    const category = String(req.query.category || "").trim();
+    const search = String(req.query.search || "").trim();
+
     if (isNaN(lat) || isNaN(lng)) {
       return res.status(400).json({ message: "Se requieren lat y lng válidos" });
     }
+
+    let relatedCategories = category ? [normalizeCategory(category)] : [];
+    let relatedBusinessIds = [];
+
+    if (search) {
+      const intent = await resolveIntent(search);
+      relatedCategories = [...new Set([...relatedCategories, ...intent.categories])];
+
+      const escapedTerms = intent.terms
+        .map((term) => term.replace(/[.*+?^$()|[\]\\]/g, "\\$&"))
+        .filter(Boolean);
+
+      if (escapedTerms.length) {
+        const termRegex = new RegExp(escapedTerms.join("|"), "i");
+        const products = await Product.find({
+          blocked: { $ne: true },
+          $or: [
+            { name: termRegex },
+            { description: termRegex },
+            ...(relatedCategories.length ? [{ category: { $in: relatedCategories } }] : []),
+          ],
+        }).select("businessId").limit(200).lean();
+
+        relatedBusinessIds = [...new Set(products.map((product) => product.businessId?.toString()).filter(Boolean))];
+      }
+    }
+
+    const geoQuery = { blocked: { $ne: true } };
+
+    if (relatedCategories.length || relatedBusinessIds.length) {
+      geoQuery.$or = [];
+      if (relatedCategories.length) geoQuery.$or.push({ categories: { $in: relatedCategories } });
+      if (relatedBusinessIds.length) {
+        const mongoose = require("mongoose");
+        geoQuery.$or.push({
+          _id: {
+            $in: relatedBusinessIds
+              .filter((id) => mongoose.Types.ObjectId.isValid(id))
+              .map((id) => new mongoose.Types.ObjectId(id)),
+          },
+        });
+      }
+    }
+
     const businesses = await Business.aggregate([
       {
         $geoNear: {
-          near:          { type: "Point", coordinates: [lng, lat] },
+          near: { type: "Point", coordinates: [lng, lat] },
           distanceField: "distanceMeters",
-          maxDistance:   radius,
-          spherical:     true,
-          query:         { blocked: { $ne: true } },
+          maxDistance: radius,
+          spherical: true,
+          query: geoQuery,
         },
       },
-      { $limit: 20 },
+      { $limit: 60 },
       {
         $project: {
-          name: 1, description: 1, city: 1, logo: 1, rating: 1,
-          totalRatings: 1, verified: 1, categories: 1, address: 1,
-          phone: 1, followers: 1, distanceMeters: 1,
-          location: 1, // ← nuevo: [lng, lat] para recalcular distancia en vivo del lado del cliente
+          name: 1,
+          description: 1,
+          city: 1,
+          logo: 1,
+          rating: 1,
+          totalRatings: 1,
+          verified: 1,
+          categories: 1,
+          address: 1,
+          phone: 1,
+          followers: 1,
+          distanceMeters: 1,
+          location: 1,
         },
       },
     ]);
-    const result = businesses.map((b) => ({
-      ...b,
-      distanceLabel: b.distanceMeters < 1000
-        ? `${Math.round(b.distanceMeters)} m`
-        : `${(b.distanceMeters / 1000).toFixed(1)} km`,
+
+    const result = businesses.map((business) => ({
+      ...business,
+      distanceLabel: business.distanceMeters < 1000
+        ? Math.round(business.distanceMeters) + " m"
+        : (business.distanceMeters / 1000).toFixed(1) + " km",
     }));
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
