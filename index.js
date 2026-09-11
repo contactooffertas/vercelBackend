@@ -4,6 +4,7 @@ const express   = require('express');
 const cors      = require('cors');
 const path      = require('path');
 const connectDB = require('./config/db');
+const { blockForbiddenContent } = require('./utils/contentPolicy');
 
 // ── Rutas ─────────────────────────────────────────────────────────────────────
 const registerRecoveryRoutes = require('./routes/registerRecoveryRoute');
@@ -56,6 +57,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(blockForbiddenContent);
 
 // NOTA: Vercel no soporta archivos estáticos persistentes en /uploads.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
