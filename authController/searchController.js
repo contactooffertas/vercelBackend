@@ -11,6 +11,7 @@ const {
   resolveIntent,
   seedForCategory,
 } = require("../utils/searchService");
+const { findManagedForbiddenText } = require("../utils/contentPolicy");
 
 function slugify(value) {
   return normalizeText(value).replace(/\s+/g, "-").replace(/-+/g, "-");
@@ -29,6 +30,7 @@ exports.publicCategories = async (_req, res) => {
 exports.suggest = async (req, res) => {
   try {
     const q = String(req.query.q || "");
+    if (await findManagedForbiddenText(q)) return res.json({ suggestions: [] });
     const limit = Math.min(12, Math.max(1, Number(req.query.limit || 8)));
     const suggestions = await getSuggestions(q, limit);
     res.json({
@@ -46,6 +48,7 @@ exports.suggest = async (req, res) => {
 exports.resolve = async (req, res) => {
   try {
     const q = String(req.query.q || "");
+    if (await findManagedForbiddenText(q)) return res.status(400).json({ message: "La búsqueda contiene términos no permitidos." });
     const intent = await resolveIntent(q);
     res.json(intent);
   } catch (error) {
@@ -57,6 +60,7 @@ exports.smartSearch = async (req, res) => {
   try {
     await ensureSearchSeeds();
     const q = String(req.query.q || "");
+    if (await findManagedForbiddenText(q)) return res.status(400).json({ message: "La búsqueda contiene términos no permitidos." });
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
     const radius = Number(req.query.radius || 10000);
