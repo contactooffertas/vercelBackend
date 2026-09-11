@@ -1,22 +1,34 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/userModel');
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const User = require("../models/userModel");
+const connectDB = require("../config/db");
 
 module.exports = async (req, res) => {
-  const { email, password } = req.body;
+  try {
+    await connectDB();
 
-  const user = await User.findOne({ email });
-  if (!user) return res.status(400).json({ message: 'Credenciales inválidas' });
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email y contraseña son requeridos" });
+    }
 
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) return res.status(400).json({ message: 'Credenciales inválidas' });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "Credenciales inválidas" });
 
-  // ✅ role incluido en el token
-  const token = jwt.sign(
-    { id: user._id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: '7d' }
-  );
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(400).json({ message: "Credenciales inválidas" });
 
-  res.json({ token, user });
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.json({ token, user });
+  } catch (err) {
+    console.error("❌ LOGIN:", err.message);
+    return res.status(503).json({
+      message: "El servicio está tardando en responder. Intentá nuevamente en unos segundos.",
+    });
+  }
 };
