@@ -2,6 +2,18 @@ const express = require("express");
 const router  = express.Router();
 const auth    = require("../middleware/authMiddleware");
 const { getAdminFunnel, clearAdminFunnel } = require("../authController/adminFunnelController");
+const {
+  adminGetDictionary,
+  adminCreateKeyword,
+  adminUpdateKeyword,
+  adminDeleteKeyword,
+  adminCreateForbidden,
+  adminUpdateForbidden,
+  adminDeleteForbidden,
+  adminCreateCategory,
+  adminUpdateCategory,
+  adminDeleteCategory,
+} = require("../authController/searchController");
 
 const {
   requireAdmin,
@@ -54,6 +66,18 @@ router.use(auth, requireAdmin);
 router.get("/stats", getDashboardStats);
 router.get("/funnel", getAdminFunnel);
 router.delete("/funnel", clearAdminFunnel);
+
+// ── BUSCADOR / DICCIONARIO ───────────────────────────────────────────────────
+router.get("/search-dictionary", adminGetDictionary);
+router.post("/search-dictionary/keywords", adminCreateKeyword);
+router.put("/search-dictionary/keywords/:id", adminUpdateKeyword);
+router.delete("/search-dictionary/keywords/:id", adminDeleteKeyword);
+router.post("/search-dictionary/forbidden", adminCreateForbidden);
+router.put("/search-dictionary/forbidden/:id", adminUpdateForbidden);
+router.delete("/search-dictionary/forbidden/:id", adminDeleteForbidden);
+router.post("/categories", adminCreateCategory);
+router.put("/categories/:id", adminUpdateCategory);
+router.delete("/categories/:id", adminDeleteCategory);
 
 // ── USUARIOS ─────────────────────────────────────────────────────────────────
 router.get("/users",              getAllUsers);
