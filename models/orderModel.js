@@ -18,6 +18,31 @@ const orderSchema = new mongoose.Schema({
   businessPhone: { type: String, default: "" },
   businessId:    { type: mongoose.Schema.Types.ObjectId, ref: "Business" },
   date: { type: Date, default: Date.now },
+  payment: {
+    method: {
+      type: String,
+      enum: ["direct", "bna", "santafe"],
+      default: "direct",
+    },
+    status: {
+      type: String,
+      enum: ["unpaid", "pending", "verifying", "paid", "rejected", "refunded"],
+      default: "unpaid",
+    },
+    providerUrl: { type: String, default: "" },
+    externalReference: { type: String, default: "" },
+    initiatedAt: { type: Date, default: null },
+    returnedAt: { type: Date, default: null },
+    confirmedAt: { type: Date, default: null },
+    confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    refundStatus: {
+      type: String,
+      enum: ["none", "requested", "refunded"],
+      default: "none",
+    },
+    refundRequestedAt: { type: Date, default: null },
+    refundedAt: { type: Date, default: null },
+  },
   // ── Calificaciones ────────────────────────────────────────────────────
   buyerRating: {
     rating:    { type: Number, min: 1, max: 5, default: null },
