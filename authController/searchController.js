@@ -137,10 +137,29 @@ exports.smartSearch = async (req, res) => {
         : undefined,
     }));
 
+    const mappedProducts = products
+      .filter((product) => !product.businessId?.blocked)
+      .map((product) => ({
+        ...product,
+        business: product.businessId
+          ? {
+              _id: product.businessId._id,
+              name: product.businessId.name,
+              city: product.businessId.city,
+              logo: product.businessId.logo,
+              verified: product.businessId.verified,
+              rating: product.businessId.rating,
+              totalRatings: product.businessId.totalRatings,
+              categories: product.businessId.categories,
+              location: product.businessId.location,
+            }
+          : null,
+      }));
+
     res.json({
       query: q,
       intent,
-      products,
+      products: mappedProducts,
       businesses: mappedBusinesses,
     });
   } catch (error) {
