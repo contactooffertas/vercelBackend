@@ -31,7 +31,13 @@ const { router: pushRoutes } = require('./routes/pushRoute');
 const geoPushRoutes = require('./routes/geoPushRoute');
 
 const app = express();
-connectDB();
+
+// En Vercel la conexión puede tardar al iniciar una función fría.
+// No dejamos que un fallo transitorio derribe toda la API: cada ruta crítica
+// vuelve a asegurar la conexión antes de consultar MongoDB.
+connectDB().catch((err) => {
+  console.error("❌ MongoDB al iniciar:", err.message);
+});
 
 // ── Middlewares globales ──────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
