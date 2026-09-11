@@ -112,3 +112,44 @@ exports.getAdminFunnel = async (req, res) => {
     res.status(500).json({ message: 'Error obteniendo el embudo de adquisición' });
   }
 };
+
+// DELETE /api/admin/funnel?mode=range&days=30
+// DELETE /api/admin/funnel?mode=all
+// Solo limpia colecciones de tracking/leads. No toca usuarios, negocios, productos ni pedidos.
+exports.clearAdminFunnel = async (req, res) => {
+  try {
+    const mode = req.query.mode === 'all' ? 'all' : 'range';
+
+    let eventFilter = {};
+    let profileFilter = {};
+    let days = null;
+
+    if (mode === 'range') {
+      days = Math.min(Math.max(Number(req.query.days) || 30, 1), 180);
+      const since = new Date(Date.now() - days * 86400000);
+      eventFilter = { createdAt: { $gte: since } };
+      profileFilter = { last_seen: { $gte: since } };
+    }
+
+    const [eventsResult, profilesResult] = await Promise.all([
+      TrackingEvent.deleteMany(eventFilter),
+      LeadProfile.deleteMany(profileFilter),
+    ]);
+
+    return res.json({
+      ok: true,
+      mode,
+      days,
+      deleted: {
+        trackingEvents: eventsResult.deletedCount || 0,
+        leadProfiles: profilesResult.deletedCount || 0,
+      },
+      message: mode === 'all'
+        ? 'Se limpiaron todos los datos de Leads y tracking.'
+        : `Se limpiaron los datos de Leads y tracking de los últimos ${days} días.`,
+    });
+  } catch (error) {
+    console.error('clearAdminFunnel:', error);
+    return res.status(500).json({ message: 'Error limpiando los datos de Leads' });
+  }
+};
