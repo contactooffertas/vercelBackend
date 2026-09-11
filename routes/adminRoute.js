@@ -1,7 +1,7 @@
 const express = require("express");
 const router  = express.Router();
 const auth    = require("../middleware/authMiddleware");
-const { getAdminFunnel } = require("../authController/adminFunnelController");
+const { getAdminFunnel, clearAdminFunnel } = require("../authController/adminFunnelController");
 
 const {
   requireAdmin,
@@ -52,7 +52,7 @@ router.use(auth, requireAdmin);
 
 // ── DASHBOARD ────────────────────────────────────────────────────────────────
 router.get("/stats", getDashboardStats);
-router.get("/funnel", getAdminFunnel);
+router.get("/funnel", getAdminFunnel);\nrouter.delete("/funnel", clearAdminFunnel);
 
 // ── USUARIOS ─────────────────────────────────────────────────────────────────
 router.get("/users",              getAllUsers);
