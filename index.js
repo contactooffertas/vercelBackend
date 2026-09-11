@@ -25,6 +25,7 @@ const trackingRoutes       = require('./routes/trackingRoutes');
 const affiliateRoutes      = require('./routes/affiliateRoute');
 const affiliateBuyerRoutes = require('./routes/affiliateBuyerRoute');
 const affiliateSellerRoutes = require('./routes/affiliateSellerRoute');
+const searchRoutes          = require('./routes/searchRoute');
 
 // Se carga primero pushRoute para inicializar web-push/VAPID una sola vez.
 const { router: pushRoutes } = require('./routes/pushRoute');
@@ -95,6 +96,7 @@ app.use('/api/auth',            authRoutes);
 app.use('/api/user',            userRoutes);
 app.use('/api/business',        busiRoutes);
 app.use('/api/products',        productRoutes);
+app.use('/api/search',          searchRoutes);
 app.use('/api/cart',            cartRoutes);
 app.use('/api/orders',          orderRoutes);
 app.use('/api/chat',            chatRoutes);
