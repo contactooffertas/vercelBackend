@@ -163,12 +163,202 @@ router.get("/seller", auth, async (req, res) => {
   }
 });
 
+// ─── PAGOS EXTERNOS: BNA / BANCO SANTA FE ───────────────────────────────
+// Rosario Market no procesa tarjetas ni guarda credenciales bancarias.
+// El regreso del comprador solo pasa el pago a "verifying". El vendedor
+// confirma después de verificar la acreditación en su proveedor.
+
+router.post("/:id/payment/start", auth, async (req, res) => {
+  try {
+    const { provider } = req.body;
+    if (!["bna", "santafe"].includes(provider)) {
+      return res.status(400).json({ message: "Medio de pago inválido" });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Orden no encontrada" });
+    if (order.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: "No autorizado" });
+    }
+
+    const business = await Business.findById(order.businessId).select("paymentMethods name").lean();
+    if (!business) return res.status(404).json({ message: "Negocio no encontrado" });
+
+    const config = business.paymentMethods?.[provider];
+    if (!config?.enabled || !config?.paymentLink) {
+      return res.status(400).json({ message: "Este negocio no tiene habilitado ese medio de pago." });
+    }
+
+    order.payment.method = provider;
+    order.payment.status = "pending";
+    order.payment.providerUrl = config.paymentLink;
+    order.payment.externalReference = order._id.toString();
+    order.payment.initiatedAt = new Date();
+    order.payment.returnedAt = null;
+    order.payment.confirmedAt = null;
+    order.payment.confirmedBy = null;
+    await order.save();
+
+    res.json({
+      orderId: order._id,
+      provider,
+      redirectUrl: config.paymentLink,
+      returnUrl: `https://www.rosariomarket.com.ar/pago/retorno?orderId=${order._id}&provider=${provider}`,
+      paymentStatus: order.payment.status,
+      message: "Pago iniciado. Al volver, quedará en verificación hasta confirmar la acreditación.",
+    });
+  } catch (err) {
+    console.error("Error /payment/start:", err);
+    res.status(500).json({ message: "Error iniciando el pago" });
+  }
+});
+
+router.patch("/:id/payment/returned", auth, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Orden no encontrada" });
+    if (order.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: "No autorizado" });
+    }
+    if (!["bna", "santafe"].includes(order.payment?.method)) {
+      return res.status(400).json({ message: "La orden no tiene un pago bancario iniciado." });
+    }
+    if (order.payment.status === "paid") {
+      return res.json({ message: "El pago ya está confirmado.", payment: order.payment });
+    }
+
+    order.payment.status = "verifying";
+    order.payment.returnedAt = new Date();
+    await order.save();
+
+    const business = await Business.findById(order.businessId).select("owner").lean();
+    const io = req.app.get("io");
+    if (io && business?.owner) {
+      io.to(`user_${business.owner}`).emit("paymentVerificationRequested", { orderId: order._id });
+    }
+
+    res.json({
+      message: "Recibimos tu aviso de pago. El vendedor debe confirmar la acreditación antes del envío.",
+      payment: order.payment,
+    });
+  } catch (err) {
+    console.error("Error /payment/returned:", err);
+    res.status(500).json({ message: "Error registrando el regreso del pago" });
+  }
+});
+
+router.patch("/:id/payment/confirm", auth, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Orden no encontrada" });
+
+    const business = await Business.findOne({ owner: req.user.id }).lean();
+    if (!business || order.businessId?.toString() !== business._id.toString()) {
+      return res.status(403).json({ message: "No autorizado" });
+    }
+    if (!["pending", "verifying"].includes(order.payment?.status)) {
+      return res.status(400).json({ message: "El pago no está pendiente de confirmación." });
+    }
+
+    order.payment.status = "paid";
+    order.payment.confirmedAt = new Date();
+    order.payment.confirmedBy = req.user.id;
+    if (order.status === "pending") order.status = "confirmed";
+    await order.save();
+
+    const io = req.app.get("io");
+    if (io) io.to(`user_${order.user}`).emit("paymentConfirmed", { orderId: order._id });
+
+    res.json({
+      message: "Pago confirmado. El pedido ya puede prepararse y despacharse.",
+      order,
+    });
+  } catch (err) {
+    console.error("Error /payment/confirm:", err);
+    res.status(500).json({ message: "Error confirmando el pago" });
+  }
+});
+
+router.patch("/:id/payment/reject", auth, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Orden no encontrada" });
+
+    const business = await Business.findOne({ owner: req.user.id }).lean();
+    if (!business || order.businessId?.toString() !== business._id.toString()) {
+      return res.status(403).json({ message: "No autorizado" });
+    }
+
+    order.payment.status = "rejected";
+    await order.save();
+
+    res.json({ message: "Pago marcado como no acreditado.", order });
+  } catch (err) {
+    res.status(500).json({ message: "Error actualizando el pago" });
+  }
+});
+
+router.patch("/:id/payment/refund-request", auth, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Orden no encontrada" });
+    if (order.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: "No autorizado" });
+    }
+    if (order.payment?.status !== "paid") {
+      return res.status(400).json({ message: "Solo podés solicitar devolución de un pago confirmado." });
+    }
+
+    order.payment.refundStatus = "requested";
+    order.payment.refundRequestedAt = new Date();
+    await order.save();
+
+    res.json({
+      message: "Solicitud registrada. La devolución monetaria se procesa en el mismo proveedor de pago.",
+      payment: order.payment,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Error solicitando devolución" });
+  }
+});
+
+router.patch("/:id/payment/refunded", auth, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Orden no encontrada" });
+
+    const business = await Business.findOne({ owner: req.user.id }).lean();
+    if (!business || order.businessId?.toString() !== business._id.toString()) {
+      return res.status(403).json({ message: "No autorizado" });
+    }
+
+    order.payment.status = "refunded";
+    order.payment.refundStatus = "refunded";
+    order.payment.refundedAt = new Date();
+    await order.save();
+
+    res.json({
+      message: "Devolución marcada como realizada. El reintegro debe haberse ejecutado en el proveedor.",
+      order,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Error registrando la devolución" });
+  }
+});
+
 // ─── PATCH /api/orders/:id/ship ───────────────────────────────────────────
 // Stock no se toca — ya fue descontado al crear la orden.
 router.patch("/:id/ship", auth, async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Orden no encontrada" });
+
+    if (order.payment?.method && order.payment.method !== "direct" && order.payment.status !== "paid") {
+      return res.status(400).json({
+        message: "No podés despachar este pedido hasta que el pago esté confirmado.",
+        code: "PAYMENT_NOT_CONFIRMED",
+      });
+    }
 
     order.status = "shipped";
     await order.save();
