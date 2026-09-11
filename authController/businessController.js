@@ -419,6 +419,7 @@ exports.getBusinessSocialStatus = async (req, res) => {
 /* ── NEGOCIOS CERCANOS ───────────────────────────────────────────────────── */
 exports.getNearbyBusinesses = async (req, res) => {
   try {
+    await require("../config/db")();
     const lat    = parseFloat(req.query.lat);
     const lng    = parseFloat(req.query.lng);
     const radius = parseInt(req.query.radius) || 3000;
