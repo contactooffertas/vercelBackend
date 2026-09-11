@@ -73,6 +73,19 @@ app.get('/', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Deploy hecho Offertas conectado (Vercel)' });
 });
 
+// Health real para que el frontend pueda distinguir una API disponible de
+// una API que compiló pero perdió acceso a MongoDB.
+app.get('/api/health', async (req, res) => {
+  try {
+    await connectDB();
+    await require('mongoose').connection.db.admin().ping();
+    res.status(200).json({ status: 'ok' });
+  } catch (error) {
+    console.error('❌ /api/health:', error.message);
+    res.status(503).json({ status: 'unavailable' });
+  }
+});
+
 app.use('/p', shareRoutes);
 
 // ── Rutas de la API ───────────────────────────────────────────────────────────
