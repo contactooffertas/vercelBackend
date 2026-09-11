@@ -21,7 +21,7 @@ const orderSchema = new mongoose.Schema({
   payment: {
     method: {
       type: String,
-      enum: ["direct", "bna", "santafe"],
+      enum: ["direct", "bna", "santafe", "mercadopago"],
       default: "direct",
     },
     status: {
