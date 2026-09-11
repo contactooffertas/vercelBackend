@@ -4,6 +4,7 @@ const path       = require('path');
 const fs         = require('fs');
 const { Conversation, Message } = require('../models/chatModel');
 const cloudinary = require('../config/cloudinary');
+const { findForbiddenInObject } = require('../utils/contentPolicy');
 
 // ─── Helpers privados ─────────────────────────────────────────────────────────
 
