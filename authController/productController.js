@@ -3,6 +3,7 @@
 const mongoose = require("mongoose");
 const Product  = require("../models/productoModel");
 const Business = require("../models/businessModel");
+const { learnFromProduct } = require("../utils/searchService");
 const Featured = require("../models/featuredModel");
 const User     = require("../models/userModel");
 const cloudinary = require("../config/cloudinary");
@@ -170,6 +171,12 @@ exports.createProduct = async (req, res) => {
       productName:     newProduct.name,
       productId:       newProduct._id.toString(),
       productImageUrl: newProduct.image,
+    }).catch(() => {});
+
+    learnFromProduct({
+      name: newProduct.name,
+      description: newProduct.description,
+      category: newProduct.category,
     }).catch(() => {});
 
     res.status(201).json(normalizeFlashOffer(newProduct.toObject()));
