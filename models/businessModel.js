@@ -15,6 +15,16 @@ const businessSchema = new mongoose.Schema(
     blocked: { type: Boolean, default: false },
     blockedReason: { type: String, default: "" },
     categories: [String],
+    paymentMethods: {
+      bna: {
+        enabled: { type: Boolean, default: false },
+        paymentLink: { type: String, default: "" },
+      },
+      santafe: {
+        enabled: { type: Boolean, default: false },
+        paymentLink: { type: String, default: "" },
+      },
+    },
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     rating: { type: Number, default: 0 },
     totalRatings: { type: Number, default: 0 },
