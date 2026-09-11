@@ -24,6 +24,10 @@ const businessSchema = new mongoose.Schema(
         enabled: { type: Boolean, default: false },
         paymentLink: { type: String, default: "" },
       },
+      mercadopago: {
+        enabled: { type: Boolean, default: false },
+        paymentLink: { type: String, default: "" },
+      },
     },
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     rating: { type: Number, default: 0 },
