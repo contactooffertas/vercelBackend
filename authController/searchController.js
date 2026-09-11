@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const SearchKeyword = require("../models/searchKeywordModel");
 const ForbiddenTerm = require("../models/forbiddenTermModel");
 const Category = require("../models/categoryModel");
@@ -87,6 +88,9 @@ exports.smartSearch = async (req, res) => {
       .lean();
 
     const productBusinessIds = [...new Set(products.map(p => p.businessId?._id?.toString()).filter(Boolean))];
+    const productBusinessObjectIds = productBusinessIds
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
     let businesses = [];
 
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
@@ -94,7 +98,7 @@ exports.smartSearch = async (req, res) => {
       if (intent.categories.length) {
         geoQuery.$or = [
           { categories: { $in: intent.categories } },
-          { _id: { $in: productBusinessIds } },
+          { _id: { $in: productBusinessObjectIds } },
         ];
       } else if (productBusinessIds.length) {
         geoQuery._id = { $in: productBusinessIds };
@@ -123,10 +127,10 @@ exports.smartSearch = async (req, res) => {
       if (intent.categories.length) {
         bizQuery.$or = [
           { categories: { $in: intent.categories } },
-          { _id: { $in: productBusinessIds } },
+          { _id: { $in: productBusinessObjectIds } },
         ];
       } else if (productBusinessIds.length) {
-        bizQuery._id = { $in: productBusinessIds };
+        bizQuery._id = { $in: productBusinessObjectIds };
       }
       businesses = await Business.find(bizQuery)
         .limit(30)
