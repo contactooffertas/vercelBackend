@@ -616,6 +616,7 @@ exports.getMyPaymentSettings = async (req, res) => {
       paymentMethods: business.paymentMethods || {
         bna: { enabled: false, paymentLink: "" },
         santafe: { enabled: false, paymentLink: "" },
+        mercadopago: { enabled: false, paymentLink: "" },
       },
     });
   } catch (error) {
@@ -638,12 +639,16 @@ exports.updateMyPaymentSettings = async (req, res) => {
         enabled: Boolean(incoming.santafe?.enabled),
         paymentLink: String(incoming.santafe?.paymentLink || "").trim(),
       },
+      mercadopago: {
+        enabled: Boolean(incoming.mercadopago?.enabled),
+        paymentLink: String(incoming.mercadopago?.paymentLink || "").trim(),
+      },
     };
 
     for (const [provider, config] of Object.entries(next)) {
       if (config.enabled && !isSafeHttpsUrl(config.paymentLink)) {
         return res.status(400).json({
-          message: `Ingresá un link HTTPS válido para ${provider === "bna" ? "BNA +Pagos Nación" : "Banco Santa Fe / PlusPagos"}.`,
+          message: `Ingresá un link HTTPS válido para ${provider === "bna" ? "BNA +Pagos Nación" : provider === "santafe" ? "Banco Santa Fe / PlusPagos" : "Mercado Pago"}.`,
         });
       }
     }
@@ -677,6 +682,10 @@ exports.getPublicPaymentMethods = async (req, res) => {
         santafe: {
           enabled: Boolean(methods.santafe?.enabled && methods.santafe?.paymentLink),
           paymentLink: methods.santafe?.enabled ? methods.santafe?.paymentLink || "" : "",
+        },
+        mercadopago: {
+          enabled: Boolean(methods.mercadopago?.enabled && methods.mercadopago?.paymentLink),
+          paymentLink: methods.mercadopago?.enabled ? methods.mercadopago?.paymentLink || "" : "",
         },
       },
     });
