@@ -86,6 +86,8 @@ async function notifyNearbyBusinessesForUser({ userId, lat, lng }) {
   if (!businesses.length) return { delivered: 0 };
 
   const cooldownCutoff = new Date(Date.now() - NEARBY_COOLDOWN_MS);
+  const deliveredBusinesses = [];
+  let totalDelivered = 0;
 
   for (const business of businesses) {
     const recent = await NearbyPushLog.findOne({
@@ -135,11 +137,22 @@ async function notifyNearbyBusinessesForUser({ userId, lat, lng }) {
         { lastSentAt: new Date(), lastDistanceMeters: meters },
         { upsert: true, new: true },
       );
-      return { delivered, businessId: business._id, distanceMeters: meters };
+
+      // El cooldown es por usuario + negocio, no por usuario global.
+      // Seguimos recorriendo para que otros negocios cercanos también puedan avisar.
+      deliveredBusinesses.push({
+        businessId: business._id,
+        distanceMeters: meters,
+        delivered,
+      });
+      totalDelivered += delivered;
     }
   }
 
-  return { delivered: 0 };
+  return {
+    delivered: totalDelivered,
+    businesses: deliveredBusinesses,
+  };
 }
 
 async function notifyProductAudience(args) {
