@@ -593,3 +593,92 @@ exports.resolveBusinessAppeal = async (req, res) => {
     res.status(500).json({ message: 'Error al resolver la apelación' });
   }
 };
+
+
+function isSafeHttpsUrl(value) {
+  try {
+    const url = new URL(String(value || "").trim());
+    return url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+exports.getMyPaymentSettings = async (req, res) => {
+  try {
+    const business = await Business.findOne({ owner: req.user.id }).select("paymentMethods name").lean();
+    if (!business) return res.status(404).json({ message: "No existe negocio" });
+    res.json({
+      businessId: business._id,
+      businessName: business.name,
+      paymentMethods: business.paymentMethods || {
+        bna: { enabled: false, paymentLink: "" },
+        santafe: { enabled: false, paymentLink: "" },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error obteniendo métodos de cobro" });
+  }
+};
+
+exports.updateMyPaymentSettings = async (req, res) => {
+  try {
+    const business = await Business.findOne({ owner: req.user.id });
+    if (!business) return res.status(404).json({ message: "No existe negocio" });
+
+    const incoming = req.body?.paymentMethods || {};
+    const next = {
+      bna: {
+        enabled: Boolean(incoming.bna?.enabled),
+        paymentLink: String(incoming.bna?.paymentLink || "").trim(),
+      },
+      santafe: {
+        enabled: Boolean(incoming.santafe?.enabled),
+        paymentLink: String(incoming.santafe?.paymentLink || "").trim(),
+      },
+    };
+
+    for (const [provider, config] of Object.entries(next)) {
+      if (config.enabled && !isSafeHttpsUrl(config.paymentLink)) {
+        return res.status(400).json({
+          message: `Ingresá un link HTTPS válido para ${provider === "bna" ? "BNA +Pagos Nación" : "Banco Santa Fe / PlusPagos"}.`,
+        });
+      }
+    }
+
+    business.paymentMethods = next;
+    await business.save();
+
+    res.json({
+      message: "Métodos de cobro actualizados",
+      paymentMethods: business.paymentMethods,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error actualizando métodos de cobro" });
+  }
+};
+
+exports.getPublicPaymentMethods = async (req, res) => {
+  try {
+    const business = await Business.findById(req.params.id).select("paymentMethods name blocked").lean();
+    if (!business || business.blocked) return res.status(404).json({ message: "Negocio no encontrado" });
+
+    const methods = business.paymentMethods || {};
+    res.json({
+      businessId: business._id,
+      businessName: business.name,
+      methods: {
+        bna: {
+          enabled: Boolean(methods.bna?.enabled && methods.bna?.paymentLink),
+          paymentLink: methods.bna?.enabled ? methods.bna?.paymentLink || "" : "",
+        },
+        santafe: {
+          enabled: Boolean(methods.santafe?.enabled && methods.santafe?.paymentLink),
+          paymentLink: methods.santafe?.enabled ? methods.santafe?.paymentLink || "" : "",
+        },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error obteniendo métodos de cobro" });
+  }
+};
