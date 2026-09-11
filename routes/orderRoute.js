@@ -163,7 +163,7 @@ router.get("/seller", auth, async (req, res) => {
   }
 });
 
-// ─── PAGOS EXTERNOS: BNA / BANCO SANTA FE ───────────────────────────────
+// ─── PAGOS EXTERNOS: BNA / BANCO SANTA FE / MERCADO PAGO ───────────────
 // Rosario Market no procesa tarjetas ni guarda credenciales bancarias.
 // El regreso del comprador solo pasa el pago a "verifying". El vendedor
 // confirma después de verificar la acreditación en su proveedor.
@@ -171,7 +171,7 @@ router.get("/seller", auth, async (req, res) => {
 router.post("/:id/payment/start", auth, async (req, res) => {
   try {
     const { provider } = req.body;
-    if (!["bna", "santafe"].includes(provider)) {
+    if (!["bna", "santafe", "mercadopago"].includes(provider)) {
       return res.status(400).json({ message: "Medio de pago inválido" });
     }
 
@@ -220,8 +220,8 @@ router.patch("/:id/payment/returned", auth, async (req, res) => {
     if (order.user.toString() !== req.user.id) {
       return res.status(403).json({ message: "No autorizado" });
     }
-    if (!["bna", "santafe"].includes(order.payment?.method)) {
-      return res.status(400).json({ message: "La orden no tiene un pago bancario iniciado." });
+    if (!["bna", "santafe", "mercadopago"].includes(order.payment?.method)) {
+      return res.status(400).json({ message: "La orden no tiene un pago externo iniciado." });
     }
     if (order.payment.status === "paid") {
       return res.json({ message: "El pago ya está confirmado.", payment: order.payment });
