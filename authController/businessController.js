@@ -3,6 +3,8 @@ const User = require("../models/userModel");
 const Product = require("../models/productoModel");
 const cloudinary = require("../config/cloudinary");
 const fs = require("fs");
+const { findForbiddenInObject } = require("../utils/contentPolicy");
+const { MARKET_CATEGORIES, normalizeCategory } = require("../utils/categories");
 
 const VALID_CATEGORIES = [
   "tecnologia", "ropa", "alimentos", "hogar",
@@ -152,7 +154,11 @@ exports.upsertBusiness = async (req, res) => {
     if (req.body.categories) {
       try { categories = JSON.parse(req.body.categories); }
       catch { categories = Array.isArray(req.body.categories) ? req.body.categories : [req.body.categories]; }
-      categories = categories.filter((c) => VALID_CATEGORIES.includes(c)).slice(0, 2);
+      categories = categories
+        .map(normalizeCategory)
+        .filter((c) => VALID_CATEGORIES.includes(c))
+        .filter((c, i, arr) => arr.indexOf(c) === i)
+        .slice(0, 2);
     }
 
     const phone = (req.body.phone || "").trim();
