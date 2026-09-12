@@ -11,13 +11,13 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const CATEGORY_ROOTS = {
-  "electronica": ["celular","telefono","smartphone","notebook","computadora","pc","monitor","televisor","tv","auriculares","parlante","cargador","tablet","teclado","mouse","impresora","camara","consola","joystick","router"],
+  "electronica": ["electronica","tecnologia","celular","telefono","smartphone","notebook","computadora","pc","monitor","televisor","tv","auriculares","parlante","cargador","tablet","teclado","mouse","impresora","camara","consola","joystick","router"],
   "ropa-moda": ["zapatillas","zapatos","pollera","remera","camisa","pantalon","jean","vestido","campera","buzo","gorra","sombrero","cartera","mochila","cinturon","medias","ropa","moda","calzado","accesorios"],
   "hogar": ["mesa","silla","sillon","mueble","colchon","cama","almohada","sabana","cortina","lampara","decoracion","cocina","heladera","freezer","microondas","vajilla","termo","mate","organizador","limpieza"],
   "deportes": ["pelota","futbol","basquet","voley","tenis","raqueta","pesas","mancuernas","bicicleta","casco","botines","camiseta","short","fitness","gimnasio","running","yoga","protector","guantes","deporte"],
   "alimentos": ["comida","alimentos","pan","facturas","torta","galletitas","chocolate","cafe","te","yerba","mate","frutas","verduras","carne","pollo","pasta","queso","fiambre","bebidas","delivery"],
   "salud-belleza": ["perfume","maquillaje","crema","shampoo","acondicionador","jabon","desodorante","labial","mascara","esmalte","cepillo","salud","belleza","cosmetica","skincare","protector solar","barberia","peluqueria","uñas","spa"],
-  "automotriz": ["auto","moto","cubierta","neumatico","bateria","aceite","filtro","repuesto","amortiguador","freno","llanta","casco","lavado","detailing","accesorios auto","stereo","alarma","motor","taller","automotor"],
+  "automotriz": ["automotriz","automotor","auto","moto","cubierta","neumatico","bateria","aceite","filtro","repuesto","amortiguador","freno","llanta","casco","lavado","detailing","accesorios auto","stereo","alarma","motor","taller"],
   "juguetes": ["juguete","muñeca","muñeco","peluche","rompecabezas","puzzle","bloques","lego","autito","camion","juego","mesa","cartas","didactico","bebe","infantil","patin","monopatin","disfraz","regalo"],
   "libros": ["libro","novela","cuento","manual","escolar","diccionario","enciclopedia","comic","manga","revista","literatura","historia","ciencia","infantil","juvenil","poesia","biografia","estudio","lectura","libreria"],
   "mascotas": ["perro","gato","mascota","alimento perro","alimento gato","correa","collar","pretal","cucha","cama mascota","juguete mascota","arena","piedritas","shampoo mascota","veterinaria","peluqueria canina","comedero","bebedero","transportadora","accesorios mascota"],
