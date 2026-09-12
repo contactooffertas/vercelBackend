@@ -1,3 +1,4 @@
+const { normalizeCategory, categoryQueryValues } = require("../utils/categories");
 const Business = require("../models/businessModel");
 const User = require("../models/userModel");
 const Product = require("../models/productoModel");
@@ -435,12 +436,12 @@ exports.getNearbyBusinesses = async (req, res) => {
       return res.status(400).json({ message: "Se requieren lat y lng válidos" });
     }
 
-    let relatedCategories = category ? [normalizeCategory(category)] : [];
+    let relatedCategories = category ? categoryQueryValues(category) : [];
     let relatedBusinessIds = [];
 
     if (search) {
       const intent = await resolveIntent(search);
-      relatedCategories = [...new Set([...relatedCategories, ...intent.categories])];
+      relatedCategories = [...new Set([...relatedCategories, ...intent.categories.flatMap(categoryQueryValues)])];
 
       const escapedTerms = intent.terms
         .map((term) => term.replace(/[.*+?^$()|[\]\\]/g, "\\$&"))
