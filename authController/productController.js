@@ -418,7 +418,7 @@ function interleaveProducts(featured, organic, featuredEvery = 4) {
 
 exports.getFeaturedProducts = async (req, res) => {
   try {
-    const { lat, lng, userRadius, userId, limit } = req.query;
+    const { lat, lng, userRadius, userId, limit, category } = req.query;
     const now = new Date();
     const MAX_PER_BIZ    = 3;
     const FEATURED_EVERY = 4;
