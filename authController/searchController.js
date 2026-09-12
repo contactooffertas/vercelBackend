@@ -59,7 +59,8 @@ exports.resolve = async (req, res) => {
 
 exports.smartSearch = async (req, res) => {
   try {
-    await ensureSearchSeeds();
+    // La siembra del diccionario nunca debe bloquear una búsqueda del usuario.
+    ensureSearchSeeds().catch(() => {});
     const q = String(req.query.q || "");
     if (await findManagedForbiddenText(q)) return res.status(400).json({ message: "La búsqueda contiene términos no permitidos." });
     const lat = Number(req.query.lat);
@@ -85,7 +86,8 @@ exports.smartSearch = async (req, res) => {
     const products = await Product.find(productQuery)
       .limit(limit)
       .populate("businessId", "name city logo verified rating totalRatings categories location blocked")
-      .lean();
+      .lean()
+      .maxTimeMS(1500);
 
     const productBusinessIds = [...new Set(products.map(p => p.businessId?._id?.toString()).filter(Boolean))];
     const productBusinessObjectIds = productBusinessIds
