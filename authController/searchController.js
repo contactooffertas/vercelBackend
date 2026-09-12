@@ -129,7 +129,7 @@ exports.smartSearch = async (req, res) => {
       const bizQuery = { blocked: { $ne: true } };
       if (intent.categories.length) {
         bizQuery.$or = [
-          { categories: { $in: intent.categories } },
+          { categories: { $in: intent.categories.flatMap(categoryQueryValues) } },
           { _id: { $in: productBusinessObjectIds } },
         ];
       } else if (productBusinessIds.length) {
