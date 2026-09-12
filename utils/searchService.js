@@ -3,7 +3,7 @@ const ForbiddenTerm = require("../models/forbiddenTermModel");
 const Category = require("../models/categoryModel");
 
 const DEFAULT_CATEGORIES = [
-  ["Electrónica","electronica","Monitor"],["Tecnología","tecnologia","Laptop"],["Ropa y Moda","ropa-moda","Shirt"],
+  ["Electrónica","electronica","Electronica"],["Tecnología","tecnologia","Monitor"],["Ropa y Moda","ropa-moda","Shirt"],
   ["Hogar","hogar","Home"],["Deportes","deportes","Dumbbell"],
   ["Alimentos","alimentos","ShoppingBag"],["Salud y Belleza","salud-belleza","Heart"],
   ["Automotriz","automotriz","Car"],["Juguetes","juguetes","Gift"],
