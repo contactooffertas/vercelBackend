@@ -4,6 +4,7 @@ const ForbiddenTerm = require("../models/forbiddenTermModel");
 const Category = require("../models/categoryModel");
 const Business = require("../models/businessModel");
 const Product = require("../models/productoModel");
+const { categoryQueryValues } = require("../utils/categories");
 const {
   normalizeText,
   ensureCategories,
@@ -79,7 +80,7 @@ exports.smartSearch = async (req, res) => {
         productQuery.$or.push({ name: termRegex }, { description: termRegex });
       }
       if (intent.categories.length) {
-        productQuery.$or.push({ category: { $in: intent.categories } });
+        productQuery.$or.push({ category: { $in: intent.categories.flatMap(categoryQueryValues) } });
       }
     }
 
@@ -99,7 +100,7 @@ exports.smartSearch = async (req, res) => {
       const geoQuery = { blocked: { $ne: true } };
       if (intent.categories.length) {
         geoQuery.$or = [
-          { categories: { $in: intent.categories } },
+          { categories: { $in: intent.categories.flatMap(categoryQueryValues) } },
           { _id: { $in: productBusinessObjectIds } },
         ];
       } else if (productBusinessIds.length) {
