@@ -7,12 +7,8 @@ const { resolveIntent } = require("../utils/searchService");
 const cloudinary = require("../config/cloudinary");
 const fs = require("fs");
 const { findForbiddenInObject } = require("../utils/contentPolicy");
-const { MARKET_CATEGORIES, normalizeCategory } = require("../utils/categories");
 
-const VALID_CATEGORIES = [
-  "tecnologia", "ropa", "alimentos", "hogar",
-  "deportes", "belleza", "mascotas", "juguetes",
-];
+const VALID_CATEGORIES = MARKET_CATEGORIES;
 
 const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
