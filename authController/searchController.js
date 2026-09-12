@@ -99,20 +99,8 @@ exports.smartSearch = async (req, res) => {
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
       const geoQuery = { blocked: { $ne: true } };
       if (intent.categories.length) {
-        const categoryValues = intent.categories.flatMap(categoryQueryValues);
-        const categoryRegex = new RegExp(
-          categoryValues.map((value) => String(value).replace(/[.*+?^$()|[\]\\]/g, "\\      if (intent.categories.length) {
         geoQuery.$or = [
           { categories: { $in: intent.categories.flatMap(categoryQueryValues) } },
-          { _id: { $in: productBusinessObjectIds } },
-        ];
-      } else if (productBusinessIds.length) {")).join("|"),
-          "i"
-        );
-        geoQuery.$or = [
-          { categories: { $in: categoryValues } },
-          { name: categoryRegex },
-          { description: categoryRegex },
           { _id: { $in: productBusinessObjectIds } },
         ];
       } else if (productBusinessIds.length) {
@@ -140,20 +128,8 @@ exports.smartSearch = async (req, res) => {
     } else {
       const bizQuery = { blocked: { $ne: true } };
       if (intent.categories.length) {
-        const categoryValues = intent.categories.flatMap(categoryQueryValues);
-        const categoryRegex = new RegExp(
-          categoryValues.map((value) => String(value).replace(/[.*+?^$()|[\]\\]/g, "\\      if (intent.categories.length) {
         bizQuery.$or = [
           { categories: { $in: intent.categories } },
-          { _id: { $in: productBusinessObjectIds } },
-        ];
-      } else if (productBusinessIds.length) {")).join("|"),
-          "i"
-        );
-        bizQuery.$or = [
-          { categories: { $in: categoryValues } },
-          { name: categoryRegex },
-          { description: categoryRegex },
           { _id: { $in: productBusinessObjectIds } },
         ];
       } else if (productBusinessIds.length) {
