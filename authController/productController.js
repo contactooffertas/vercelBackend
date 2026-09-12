@@ -76,7 +76,27 @@ function buildFlashOffer(hours, discount) {
 // públicas de alto tráfico). Si ya venció, la devuelve como inactiva y con
 // el descuento normal del producto, más "flashOfferSecondsLeft" para el
 // frontend (countdown).
+function normalizeProductMedia(p) {
+  if (!p) return p;
+  const legacyImage =
+    p.image ||
+    p.imageUrl ||
+    p.photo ||
+    p.thumbnail ||
+    (Array.isArray(p.images) ? p.images.find(Boolean) : null);
+
+  if (!legacyImage && p.imagePublicId) {
+    try {
+      p.image = cloudinary.url(p.imagePublicId, { secure: true });
+    } catch {}
+  } else if (legacyImage && !p.image) {
+    p.image = legacyImage;
+  }
+  return p;
+}
+
 function normalizeFlashOffer(p) {
+  p = normalizeProductMedia(p);
   const fo = p.flashOffer;
   if (!fo || !fo.active) {
     return { ...p, flashOffer: fo || emptyFlashOffer(), flashOfferSecondsLeft: 0 };
