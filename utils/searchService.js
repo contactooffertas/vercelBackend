@@ -42,30 +42,140 @@ function seedForCategory(category) {
   }
   return [...new Set(result)].slice(0, 100);
 }
+let seedPromise = null;
+let seedReady = false;
+
 async function ensureCategories() {
   if (await Category.estimatedDocumentCount()) return;
-  await Category.insertMany(DEFAULT_CATEGORIES.map(([name,slug,iconName],i)=>({name,slug,iconName,order:i,active:true})), { ordered: false }).catch(()=>{});
+  await Category.insertMany(
+    DEFAULT_CATEGORIES.map(([name, slug, iconName], i) => ({
+      name, slug, iconName, order: i, active: true,
+    })),
+    { ordered: false }
+  ).catch(() => {});
 }
-async function ensureSearchSeeds() {
+
+async function seedDatabaseOnce() {
   await ensureCategories();
-  if (!(await SearchKeyword.estimatedDocumentCount())) {
-    const docs = [];
-    for (const category of Object.keys(CATEGORY_ROOTS)) {
-      for (const keyword of seedForCategory(category)) docs.push({ keyword, normalized: normalizeText(keyword), category, source: "seed", usageCount: 1, active: true });
+
+  // Upsert de semillas base: no depende de que la colección esté vacía.
+  // Esto corrige instalaciones donde ya había palabras aprendidas pero faltaban
+  // conceptos esenciales como "calzado" => "ropa-moda".
+  const ops = [];
+  for (const category of Object.keys(CATEGORY_ROOTS)) {
+    for (const keyword of seedForCategory(category)) {
+      const normalized = normalizeText(keyword);
+      ops.push({
+        updateOne: {
+          filter: { normalized, category },
+          update: {
+            $setOnInsert: {
+              keyword,
+              normalized,
+              category,
+              source: "seed",
+              usageCount: 1,
+              active: true,
+            },
+          },
+          upsert: true,
+        },
+      });
     }
-    await SearchKeyword.insertMany(docs, { ordered: false }).catch(()=>{});
   }
+  if (ops.length) {
+    await SearchKeyword.bulkWrite(ops, { ordered: false }).catch(() => {});
+  }
+
   const forbidden = [
     ["droga",[]],["drogas",[]],["porro",[]],["faso",[]],["cocaina",[]],
     ["prostitucion",[]],["prostituta",[]],["prostituto",[]],
     ["borracho",["palo borracho"]],["violacion",[]],["asesinato",[]],["asesino",[]],
     ["puta",[]],["puto",[]],["anal",[]],["cagar",[]],["cojer",[]],["coger",[]]
   ];
-  for (const [term, exceptions] of forbidden) {
-    const normalized = normalizeText(term);
-    await ForbiddenTerm.updateOne({ normalized }, { $setOnInsert: { term, normalized, exceptions, source: "seed", active: true } }, { upsert: true }).catch(()=>{});
-  }
+  await Promise.all(
+    forbidden.map(([term, exceptions]) => {
+      const normalized = normalizeText(term);
+      return ForbiddenTerm.updateOne(
+        { normalized },
+        { $setOnInsert: { term, normalized, exceptions, source: "seed", active: true } },
+        { upsert: true }
+      ).catch(() => {});
+    })
+  );
+
+  seedReady = true;
 }
+
+async function ensureSearchSeeds() {
+  if (seedReady) return;
+  if (!seedPromise) {
+    seedPromise = seedDatabaseOnce().finally(() => {
+      if (!seedReady) seedPromise = null;
+    });
+  }
+  await seedPromise;
+}
+
+function staticIntent(query) {
+  const normalized = normalizeText(query);
+  const tokens = normalized.split(" ").filter(Boolean);
+  const scores = new Map();
+  const terms = new Set(tokens.filter(t => t.length >= 3 && !STOPWORDS.has(t)));
+
+  for (const [category, roots] of Object.entries(CATEGORY_ROOTS)) {
+    let score = 0;
+    for (const root of roots) {
+      const normalizedRoot = normalizeText(root);
+      if (!normalizedRoot) continue;
+      if (
+        normalized === normalizedRoot ||
+        tokens.includes(normalizedRoot) ||
+        normalized.includes(normalizedRoot)
+      ) {
+        score += normalized === normalizedRoot ? 100 : 20;
+        normalizedRoot.split(" ").forEach(t => terms.add(t));
+      }
+    }
+    if (score > 0) scores.set(category, score);
+  }
+
+  return {
+    normalized,
+    categories: [...scores.entries()]
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0,3)
+      .map(([category])=>category),
+    terms: [...terms].slice(0,30),
+  };
+}
+
+function staticSuggestions(query, limit = 8) {
+  const normalized = normalizeText(query);
+  if (!normalized) return [];
+
+  const candidates = [];
+  for (const [category, roots] of Object.entries(CATEGORY_ROOTS)) {
+    for (const root of roots) {
+      const phrases = [root, ...INTENT_PREFIXES.map(prefix => prefix + " " + root)];
+      for (const text of phrases) {
+        const n = normalizeText(text);
+        if (n.startsWith(normalized) || n.includes(normalized)) {
+          candidates.push({ keyword: text, category, source: "seed", usageCount: 1000 });
+        }
+      }
+    }
+  }
+
+  const seen = new Set();
+  return candidates.filter(item => {
+    const key = normalizeText(item.keyword);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, limit);
+}
+
 async function learnFromProduct({ name, description, category }) {
   await ensureSearchSeeds();
   const text = normalizeText(String(name || "") + " " + String(description || ""));
@@ -80,32 +190,86 @@ async function learnFromProduct({ name, description, category }) {
   }
 }
 async function getSuggestions(query, limit = 8) {
-  await ensureSearchSeeds();
   const normalized = normalizeText(query);
-  if (!normalized) return SearchKeyword.find({ active: true }).sort({ usageCount: -1, keyword: 1 }).limit(limit).lean();
+  const local = staticSuggestions(normalized, limit);
+
+  // Para autocompletado no bloqueamos esperando la siembra. La iniciamos una vez
+  // y consultamos Mongo solo para complementar aprendizaje/admin.
+  ensureSearchSeeds().catch(() => {});
+
+  if (!normalized) return local;
+
   const escaped = escapeRegex(normalized);
-  return SearchKeyword.find({ active: true, $or: [
-    { normalized: { $regex: "^" + escaped, $options: "i" } },
-    { normalized: { $regex: escaped, $options: "i" } },
-  ]}).sort({ usageCount: -1, keyword: 1 }).limit(limit).lean();
-}
-async function resolveIntent(query) {
-  await ensureSearchSeeds();
-  const normalized = normalizeText(query);
-  if (!normalized) return { normalized, categories: [], terms: [] };
-  const tokens = normalized.split(" ").filter(Boolean);
-  const matches = await SearchKeyword.find({ active: true, $or: [
-    { normalized: { $in: tokens } },
-    { normalized: { $regex: tokens.map(escapeRegex).join("|"), $options: "i" } },
-  ]}).sort({ usageCount: -1 }).limit(60).lean();
-  const categoryScore = new Map();
-  const terms = new Set(tokens.filter(t => t.length >= 3 && !STOPWORDS.has(t)));
-  for (const m of matches) {
-    categoryScore.set(m.category, (categoryScore.get(m.category) || 0) + Math.max(1, Number(m.usageCount || 1)));
-    normalizeText(m.keyword).split(" ").filter(t => t.length >= 3 && !STOPWORDS.has(t)).forEach(t => terms.add(t));
-  }
-  const categories = [...categoryScore.entries()].sort((a,b)=>b[1]-a[1]).slice(0,3).map(([category])=>category);
-  return { normalized, categories, terms: [...terms].slice(0,30) };
+  const learned = await SearchKeyword.find({
+    active: true,
+    $or: [
+      { normalized: { $regex: "^" + escaped, $options: "i" } },
+      { normalized: { $regex: escaped, $options: "i" } },
+    ],
+  })
+    .sort({ usageCount: -1, keyword: 1 })
+    .limit(limit)
+    .lean()
+    .maxTimeMS(700)
+    .catch(() => []);
+
+  const combined = [...local, ...learned];
+  const seen = new Set();
+  return combined.filter(item => {
+    const key = normalizeText(item.keyword);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, limit);
 }
 
-module.exports = { normalizeText, ensureCategories, ensureSearchSeeds, learnFromProduct, getSuggestions, resolveIntent, seedForCategory };
+async function resolveIntent(query) {
+  const fast = staticIntent(query);
+  if (!fast.normalized) return fast;
+
+  // La relación semántica principal sale del diccionario en memoria.
+  // Mongo solo suma términos aprendidos/administrados y nunca debe demorar la búsqueda.
+  ensureSearchSeeds().catch(() => {});
+
+  const tokens = fast.normalized.split(" ").filter(Boolean);
+  const matches = await SearchKeyword.find({
+    active: true,
+    $or: [
+      { normalized: { $in: tokens } },
+      { normalized: { $regex: tokens.map(escapeRegex).join("|"), $options: "i" } },
+    ],
+  })
+    .sort({ usageCount: -1 })
+    .limit(40)
+    .lean()
+    .maxTimeMS(700)
+    .catch(() => []);
+
+  const categoryScore = new Map();
+  fast.categories.forEach((category, index) => {
+    categoryScore.set(category, 1000 - index * 100);
+  });
+  const terms = new Set(fast.terms);
+
+  for (const m of matches) {
+    categoryScore.set(
+      m.category,
+      (categoryScore.get(m.category) || 0) + Math.max(1, Number(m.usageCount || 1))
+    );
+    normalizeText(m.keyword)
+      .split(" ")
+      .filter(t => t.length >= 3 && !STOPWORDS.has(t))
+      .forEach(t => terms.add(t));
+  }
+
+  return {
+    normalized: fast.normalized,
+    categories: [...categoryScore.entries()]
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0,3)
+      .map(([category])=>category),
+    terms: [...terms].slice(0,30),
+  };
+}
+
+module.exports = { normalizeText, ensureCategories, ensureSearchSeeds, learnFromProduct, getSuggestions, resolveIntent, seedForCategory, staticIntent, staticSuggestions };
