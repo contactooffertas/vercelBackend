@@ -16,12 +16,22 @@ const CATEGORY_ROOTS = {
   "ropa-moda": ["zapatillas","zapatos","pollera","remera","camisa","pantalon","jean","vestido","campera","buzo","gorra","sombrero","cartera","mochila","cinturon","medias","ropa","moda","calzado","accesorios"],
   "hogar": ["mesa","silla","sillon","mueble","colchon","cama","almohada","sabana","cortina","lampara","decoracion","cocina","heladera","freezer","microondas","vajilla","termo","mate","organizador","limpieza"],
   "deportes": ["pelota","futbol","basquet","voley","tenis","raqueta","pesas","mancuernas","bicicleta","casco","botines","camiseta","short","fitness","gimnasio","running","yoga","protector","guantes","deporte"],
-  "alimentos": ["comida","alimentos","pan","panaderia","panadero","panificados","facturas","medialunas","bizcochos","torta","galletitas","chocolate","cafe","te","yerba","mate","frutas","verduras","carne","pollo","pasta","queso","fiambre","bebidas","delivery"],
+  "alimentos": ["comida","alimentos","pan","panaderia","panadero","panificados","facturas","medialunas","bizcochos","torta","galletitas","chocolate","cafe","te","yerba","mate","frutas","verduras","carne","asado","chorizo","chorizos","pollo","pollos","carniceria","polleria","almacen","supermercado","pasta","queso","fiambre","bebidas","delivery"],
   "salud-belleza": ["perfume","maquillaje","crema","shampoo","acondicionador","jabon","desodorante","labial","mascara","esmalte","cepillo","salud","belleza","cosmetica","skincare","protector solar","barberia","peluqueria","uñas","spa"],
   "automotriz": ["automotriz","automotor","auto","moto","cubierta","neumatico","bateria","aceite","filtro","repuesto","amortiguador","freno","llanta","casco","lavado","detailing","accesorios auto","stereo","alarma","motor","taller"],
   "juguetes": ["juguete","muñeca","muñeco","peluche","rompecabezas","puzzle","bloques","lego","autito","camion","juego","mesa","cartas","didactico","bebe","infantil","patin","monopatin","disfraz","regalo"],
   "libros": ["libro","novela","cuento","manual","escolar","diccionario","enciclopedia","comic","manga","revista","literatura","historia","ciencia","infantil","juvenil","poesia","biografia","estudio","lectura","libreria"],
   "mascotas": ["perro","gato","mascota","alimento perro","alimento gato","correa","collar","pretal","cucha","cama mascota","juguete mascota","arena","piedritas","shampoo mascota","veterinaria","peluqueria canina","comedero","bebedero","transportadora","accesorios mascota"],
+};
+
+const BUSINESS_INTENT_SUGGESTIONS = {
+  panaderia: { category: "alimentos", phrases: ["panaderia","panaderia cerca","panaderia en la zona","panaderia cerca de mi","panaderia abierta","panaderia con delivery"] },
+  asado: { category: "alimentos", phrases: ["carniceria cerca","carniceria en la zona","donde comprar asado","carne para asado","supermercado con carniceria"] },
+  chorizo: { category: "alimentos", phrases: ["carniceria cerca","donde comprar chorizos","chorizos para asado","carniceria en la zona","supermercado con carniceria"] },
+  chorizos: { category: "alimentos", phrases: ["carniceria cerca","donde comprar chorizos","chorizos para asado","carniceria en la zona","supermercado con carniceria"] },
+  carne: { category: "alimentos", phrases: ["carniceria cerca","carniceria en la zona","donde comprar carne","carne para asado","supermercado con carniceria"] },
+  pollo: { category: "alimentos", phrases: ["polleria cerca","carniceria cerca","donde comprar pollo","polleria en la zona","supermercado con polleria"] },
+  pollos: { category: "alimentos", phrases: ["polleria cerca","carniceria cerca","donde comprar pollo","polleria en la zona","supermercado con polleria"] },
 };
 
 const INTENT_PREFIXES = ["quiero comprar","donde comprar","busco","necesito","comprar","precio de","oferta de","tienda de","negocio de","venta de"];
@@ -156,6 +166,17 @@ function staticIntent(query) {
 function staticSuggestions(query, limit = 8) {
   const normalized = normalizeText(query);
   if (!normalized) return [];
+
+  for (const [intent, config] of Object.entries(BUSINESS_INTENT_SUGGESTIONS)) {
+    if (intent.startsWith(normalized) || normalized.includes(intent)) {
+      return config.phrases.slice(0, limit).map((keyword) => ({
+        keyword,
+        category: config.category,
+        source: "seed",
+        usageCount: 2000,
+      }));
+    }
+  }
 
   const candidates = [];
   for (const [category, roots] of Object.entries(CATEGORY_ROOTS)) {
