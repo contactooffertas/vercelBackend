@@ -3,7 +3,7 @@ const ForbiddenTerm = require("../models/forbiddenTermModel");
 const Category = require("../models/categoryModel");
 
 const DEFAULT_CATEGORIES = [
-  ["Electrónica","electronica","Monitor"],["Ropa y Moda","ropa-moda","Shirt"],
+  ["Electrónica","electronica","Monitor"],["Tecnología","tecnologia","Laptop"],["Ropa y Moda","ropa-moda","Shirt"],
   ["Hogar","hogar","Home"],["Deportes","deportes","Dumbbell"],
   ["Alimentos","alimentos","ShoppingBag"],["Salud y Belleza","salud-belleza","Heart"],
   ["Automotriz","automotriz","Car"],["Juguetes","juguetes","Gift"],
@@ -11,7 +11,8 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const CATEGORY_ROOTS = {
-  "electronica": ["electronica","tecnologia","celular","telefono","smartphone","notebook","computadora","pc","monitor","televisor","tv","auriculares","parlante","cargador","tablet","teclado","mouse","impresora","camara","consola","joystick","router"],
+  "electronica": ["electronica","televisor","tv","audio","auriculares","parlante","cargador","camara","radio","equipo de sonido","microfono","proyector","control remoto"],
+  "tecnologia": ["tecnologia","celular","telefono","smartphone","notebook","laptop","computadora","pc","monitor","tablet","teclado","mouse","impresora","router","wifi","hardware","software","ssd","disco","memoria ram","procesador","placa de video","consola","joystick"],
   "ropa-moda": ["zapatillas","zapatos","pollera","remera","camisa","pantalon","jean","vestido","campera","buzo","gorra","sombrero","cartera","mochila","cinturon","medias","ropa","moda","calzado","accesorios"],
   "hogar": ["mesa","silla","sillon","mueble","colchon","cama","almohada","sabana","cortina","lampara","decoracion","cocina","heladera","freezer","microondas","vajilla","termo","mate","organizador","limpieza"],
   "deportes": ["pelota","futbol","basquet","voley","tenis","raqueta","pesas","mancuernas","bicicleta","casco","botines","camiseta","short","fitness","gimnasio","running","yoga","protector","guantes","deporte"],
@@ -46,13 +47,15 @@ let seedPromise = null;
 let seedReady = false;
 
 async function ensureCategories() {
-  if (await Category.estimatedDocumentCount()) return;
-  await Category.insertMany(
-    DEFAULT_CATEGORIES.map(([name, slug, iconName], i) => ({
-      name, slug, iconName, order: i, active: true,
-    })),
-    { ordered: false }
-  ).catch(() => {});
+  await Promise.all(
+    DEFAULT_CATEGORIES.map(([name, slug, iconName], i) =>
+      Category.updateOne(
+        { slug },
+        { $setOnInsert: { name, slug, iconName, order: i, active: true } },
+        { upsert: true }
+      ).catch(() => {})
+    )
+  );
 }
 
 async function seedDatabaseOnce() {
