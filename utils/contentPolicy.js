@@ -41,6 +41,27 @@ function normalizePublicText(value) {
     .trim();
 }
 
+let managedForbiddenCache = { at: 0, terms: [] };
+const MANAGED_FORBIDDEN_CACHE_MS = 60 * 1000;
+
+async function getManagedForbiddenTerms() {
+  const now = Date.now();
+  if (managedForbiddenCache.terms.length && now - managedForbiddenCache.at < MANAGED_FORBIDDEN_CACHE_MS) {
+    return managedForbiddenCache.terms;
+  }
+  try {
+    const ForbiddenTerm = require('../models/forbiddenTermModel');
+    const terms = await ForbiddenTerm.find({ active: true })
+      .select('normalized exceptions')
+      .lean()
+      .maxTimeMS(600);
+    managedForbiddenCache = { at: now, terms };
+    return terms;
+  } catch (_) {
+    return managedForbiddenCache.terms;
+  }
+}
+
 function findForbiddenText(value) {
   if (typeof value !== 'string' || !value.trim()) return null;
   const normalized = normalizePublicText(value);
@@ -58,8 +79,7 @@ async function findManagedForbiddenText(value) {
   if (hardcoded) return { source: 'default', term: hardcoded.toString() };
 
   try {
-    const ForbiddenTerm = require('../models/forbiddenTermModel');
-    const terms = await ForbiddenTerm.find({ active: true }).select('normalized exceptions').lean();
+    const terms = await getManagedForbiddenTerms();
     for (const item of terms) {
       const term = normalizePublicText(item.normalized);
       if (!term) continue;
