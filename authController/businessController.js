@@ -462,7 +462,33 @@ exports.getNearbyBusinesses = async (req, res) => {
 
     if (relatedCategories.length || relatedBusinessIds.length) {
       geoQuery.$or = [];
+      if (relatedCategories.length) {
+        geoQuery.$or.push({ categories: { $in: relatedCategories } });
+
+        // Compatibilidad con negocios antiguos que no guardaron correctamente
+        // el array de categorías pero sí expresan el rubro en nombre/descripcion.
+        const categoryText = relatedCategories
+          .map((value) => String(value).replace(/[.*+?^$()|[\]\\]/g, "\\    if (relatedCategories.length || relatedBusinessIds.length) {
+      geoQuery.$or = [];
       if (relatedCategories.length) geoQuery.$or.push({ categories: { $in: relatedCategories } });
+      if (relatedBusinessIds.length) {
+        const mongoose = require("mongoose");
+        geoQuery.$or.push({
+          _id: {
+            $in: relatedBusinessIds
+              .filter((id) => mongoose.Types.ObjectId.isValid(id))
+              .map((id) => new mongoose.Types.ObjectId(id)),
+          },
+        });
+      }
+    }"))
+          .filter(Boolean)
+          .join("|");
+        if (categoryText) {
+          const categoryRegex = new RegExp(categoryText, "i");
+          geoQuery.$or.push({ name: categoryRegex }, { description: categoryRegex });
+        }
+      }
       if (relatedBusinessIds.length) {
         const mongoose = require("mongoose");
         geoQuery.$or.push({
