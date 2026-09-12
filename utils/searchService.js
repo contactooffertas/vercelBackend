@@ -231,27 +231,37 @@ async function resolveIntent(query) {
   // Mongo solo suma términos aprendidos/administrados y nunca debe demorar la búsqueda.
   ensureSearchSeeds().catch(() => {});
 
-  const tokens = fast.normalized.split(" ").filter(Boolean);
-  const matches = await SearchKeyword.find({
+  // Solo usamos términos significativos para consultar el diccionario aprendido.
+  // Palabras como "quiero", "comprar", "tienda", etc. no deben contaminar categorías.
+  const tokens = fast.normalized
+    .split(" ")
+    .filter(Boolean)
+    .filter((token) => !STOPWORDS.has(token));
+
+  const tokenPattern = tokens.map(escapeRegex).join("|");
+  const matches = tokens.length ? await SearchKeyword.find({
     active: true,
     $or: [
       { normalized: { $in: tokens } },
-      { normalized: { $regex: tokens.map(escapeRegex).join("|"), $options: "i" } },
+      { normalized: { $regex: tokenPattern, $options: "i" } },
     ],
   })
     .sort({ usageCount: -1 })
     .limit(40)
     .lean()
     .maxTimeMS(700)
-    .catch(() => []);
+    .catch(() => []) : [];
 
   const categoryScore = new Map();
   fast.categories.forEach((category, index) => {
-    categoryScore.set(category, 1000 - index * 100);
+    categoryScore.set(category, 10000 - index * 1000);
   });
   const terms = new Set(fast.terms);
 
   for (const m of matches) {
+    if (fast.categories.length > 0 && !fast.categories.includes(m.category)) {
+      continue;
+    }
     categoryScore.set(
       m.category,
       (categoryScore.get(m.category) || 0) + Math.max(1, Number(m.usageCount || 1))
