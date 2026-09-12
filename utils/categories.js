@@ -21,8 +21,28 @@ const LEGACY_CATEGORY_ALIASES = {
 };
 
 function normalizeCategory(value) {
-  const raw = String(value || '').trim().toLowerCase();
-  return LEGACY_CATEGORY_ALIASES[raw] || raw;
+  const raw = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-');
+
+  const aliases = {
+    ...LEGACY_CATEGORY_ALIASES,
+    electronica: 'electronica',
+    'ropa-y-moda': 'ropa-moda',
+    hogar: 'hogar',
+    deportes: 'deportes',
+    alimentos: 'alimentos',
+    'salud-y-belleza': 'salud-belleza',
+    automotriz: 'automotriz',
+    juguetes: 'juguetes',
+    libros: 'libros',
+    mascotas: 'mascotas',
+  };
+
+  return aliases[raw] || raw;
 }
 
 function isValidCategory(value) {
