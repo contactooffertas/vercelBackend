@@ -2,6 +2,7 @@
 // Categorías oficiales de Rosario Market: deben coincidir con el navbar.
 const MARKET_CATEGORIES = [
   'electronica',
+  'tecnologia',
   'ropa-moda',
   'hogar',
   'deportes',
@@ -14,7 +15,6 @@ const MARKET_CATEGORIES = [
 ];
 
 const LEGACY_CATEGORY_ALIASES = {
-  tecnologia: 'electronica',
   ropa: 'ropa-moda',
   belleza: 'salud-belleza',
   automotor: 'automotriz',
@@ -31,6 +31,7 @@ function normalizeCategory(value) {
   const aliases = {
     ...LEGACY_CATEGORY_ALIASES,
     electronica: 'electronica',
+    tecnologia: 'tecnologia',
     'ropa-y-moda': 'ropa-moda',
     hogar: 'hogar',
     deportes: 'deportes',
@@ -59,6 +60,7 @@ function categoryQueryValues(value) {
 
   const labelAliases = {
     electronica: ['Electrónica', 'electronica'],
+    tecnologia: ['Tecnología', 'tecnologia'],
     'ropa-moda': ['Ropa y Moda', 'ropa y moda', 'ropa'],
     hogar: ['Hogar', 'hogar'],
     deportes: ['Deportes', 'deportes'],
