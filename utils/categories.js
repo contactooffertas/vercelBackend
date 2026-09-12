@@ -49,4 +49,29 @@ function isValidCategory(value) {
   return MARKET_CATEGORIES.includes(normalizeCategory(value));
 }
 
-module.exports = { MARKET_CATEGORIES, LEGACY_CATEGORY_ALIASES, normalizeCategory, isValidCategory };
+function categoryQueryValues(value) {
+  const normalized = normalizeCategory(value);
+  const values = new Set([normalized]);
+
+  for (const [legacy, current] of Object.entries(LEGACY_CATEGORY_ALIASES)) {
+    if (current === normalized) values.add(legacy);
+  }
+
+  const labelAliases = {
+    electronica: ['Electrónica', 'electronica'],
+    'ropa-moda': ['Ropa y Moda', 'ropa y moda', 'ropa'],
+    hogar: ['Hogar', 'hogar'],
+    deportes: ['Deportes', 'deportes'],
+    alimentos: ['Alimentos', 'alimentos'],
+    'salud-belleza': ['Salud y Belleza', 'salud y belleza', 'belleza'],
+    automotriz: ['Automotriz', 'automotriz', 'automotor'],
+    juguetes: ['Juguetes', 'juguetes'],
+    libros: ['Libros', 'libros'],
+    mascotas: ['Mascotas', 'mascotas'],
+  };
+
+  (labelAliases[normalized] || []).forEach((item) => values.add(item));
+  return [...values];
+}
+
+module.exports = { MARKET_CATEGORIES, LEGACY_CATEGORY_ALIASES, normalizeCategory, isValidCategory, categoryQueryValues };
