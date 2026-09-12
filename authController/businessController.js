@@ -1,4 +1,4 @@
-const { normalizeCategory, categoryQueryValues } = require("../utils/categories");
+const { MARKET_CATEGORIES, normalizeCategory, categoryQueryValues } = require("../utils/categories");
 const Business = require("../models/businessModel");
 const User = require("../models/userModel");
 const Product = require("../models/productoModel");
