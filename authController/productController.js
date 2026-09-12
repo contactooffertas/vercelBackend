@@ -9,7 +9,7 @@ const User     = require("../models/userModel");
 const cloudinary = require("../config/cloudinary");
 const fs = require("fs");
 const { findForbiddenInObject } = require("../utils/contentPolicy");
-const { normalizeCategory, isValidCategory } = require("../utils/categories");
+const { normalizeCategory, isValidCategory, categoryQueryValues } = require("../utils/categories");
 
 function getPushNotifier() {
   return require("../routes/pushRoute").notifyBusinessFollowers;
@@ -524,7 +524,7 @@ function buildOrganicQuery(excludeIds, category, search, businessId) {
     blocked: { $ne: true },
   };
   if (excludeIds?.length) query._id = { $nin: excludeIds };
-  if (category)   query.category   = category;
+  if (category)   query.category   = { $in: categoryQueryValues(category) };
   if (search)     query.name       = { $regex: search, $options: "i" };
   if (businessId) query.businessId = businessId;
   return query;
