@@ -31,7 +31,13 @@ const CATEGORY_ROOTS = {
   "automotriz": ["automotriz","automotor","auto","moto","cubierta","neumatico","bateria","aceite","filtro","repuesto","amortiguador","freno","llanta","casco","lavado","detailing","accesorios auto","stereo","alarma","motor","taller"],
   "juguetes": ["juguete","muñeca","muñeco","peluche","rompecabezas","puzzle","bloques","lego","autito","camion","juego","mesa","cartas","didactico","bebe","infantil","patin","monopatin","disfraz","regalo"],
   "libros": ["libro","novela","cuento","manual","escolar","diccionario","enciclopedia","comic","manga","revista","literatura","historia","ciencia","infantil","juvenil","poesia","biografia","estudio","lectura","libreria"],
-  "mascotas": ["perro","gato","mascota","alimento perro","alimento gato","correa","collar","pretal","cucha","cama mascota","juguete mascota","arena","piedritas","shampoo mascota","veterinaria","peluqueria canina","comedero","bebedero","transportadora","accesorios mascota"],
+  "mascotas": [
+    "mascota","mascotas","perro","perros","gato","gatos","animales","comida para perros","comida para gatos",
+    "comida para animales","alimento para perros","alimento para gatos","alimento para animales","alimentos para mascotas","alimento para mascotas","alimento perro","alimento gato",
+    "ropa de mascotas","ropa para mascotas","correa","collar","pretal","cucha","cama mascota","juguete mascota",
+    "arena","piedritas","shampoo mascota","veterinaria","peluqueria canina","comedero","bebedero",
+    "transportadora","accesorios mascota"
+  ],
 };
 
 const BUSINESS_INTENT_SUGGESTIONS = {
@@ -46,6 +52,12 @@ const BUSINESS_INTENT_SUGGESTIONS = {
 
 const INTENT_PREFIXES = ["quiero comprar","donde comprar","busco","necesito","comprar","precio de","oferta de","tienda de","negocio de","venta de"];
 const STOPWORDS = new Set(["para","con","sin","por","una","uno","unos","unas","del","las","los","que","como","muy","mas","menos","color","nuevo","nueva","usado","usada","este","esta","ese","esa","producto","productos","venta","vendo","comprar","quiero","donde","tienda","negocio","rosario","argentina","marca","modelo"]);
+const EXCLUSIVE_CATEGORY_ROOTS = {
+  mascotas: [
+    "comida para perros","comida para gatos","comida para animales","alimento para perros","alimento para gatos","alimento para animales","alimentos para mascotas",
+    "alimento para mascotas","ropa de mascotas","ropa para mascotas"
+  ],
+};
 
 function normalizeText(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
@@ -156,11 +168,21 @@ function staticIntent(query) {
         normalized === normalizedRoot ||
         rootPattern.test(normalized)
       ) {
-        score += normalized === normalizedRoot ? 100 : 20;
+        const specificity = Math.max(0, normalizedRoot.split(" ").length - 1) * 8;
+        score += normalized === normalizedRoot ? 100 + specificity : 20 + specificity;
         normalizedRoot.split(" ").forEach(t => terms.add(t));
       }
     }
     if (score > 0) scores.set(category, score);
+  }
+
+  for (const [category, roots] of Object.entries(EXCLUSIVE_CATEGORY_ROOTS)) {
+    if (roots.some(root => {
+      const normalizedRoot = normalizeText(root);
+      return new RegExp(`(?:^|\\s)${escapeRegex(normalizedRoot)}(?:$|\\s)`).test(normalized);
+    })) {
+      return { normalized, categories: [category], terms: [...terms].slice(0, 30) };
+    }
   }
 
   return {

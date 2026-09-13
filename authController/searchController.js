@@ -1,9 +1,11 @@
 const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
 const SearchKeyword = require("../models/searchKeywordModel");
 const ForbiddenTerm = require("../models/forbiddenTermModel");
 const Category = require("../models/categoryModel");
 const Business = require("../models/businessModel");
 const Product = require("../models/productoModel");
+const User = require("../models/userModel");
 const { categoryQueryValues } = require("../utils/categories");
 const {
   normalizeText,
@@ -25,6 +27,24 @@ function normalizeProductMedia(product) {
     try { product.image = cloudinary.url(product.imagePublicId, { secure: true }); } catch {}
   }
   return product;
+}
+
+function authenticatedSearchUser(req) {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded.id || decoded._id || decoded.userId || null;
+  } catch { return null; }
+}
+
+function affinityScore(categories, affinities) {
+  const values = (Array.isArray(categories) ? categories : [categories])
+    .filter(Boolean).map(normalizeText);
+  return (affinities || []).reduce((total, affinity) => {
+    const aliases = categoryQueryValues(affinity.category).map(normalizeText);
+    return total + (values.some(value => aliases.includes(value)) ? Number(affinity.score || 0) : 0);
+  }, 0);
 }
 
 function slugify(value) {
@@ -136,6 +156,28 @@ exports.smartSearch = async (req, res) => {
     const radius = Number(req.query.radius || 10000);
     const limit = Math.min(60, Math.max(1, Number(req.query.limit || 30)));
     const intent = await resolveIntent(q);
+    const authenticatedUserId = authenticatedSearchUser(req);
+    const searchProfile = authenticatedUserId && mongoose.Types.ObjectId.isValid(authenticatedUserId)
+      ? await User.findById(authenticatedUserId).select("searchAffinities").lean().catch(() => null)
+      : null;
+    const affinities = [...(searchProfile?.searchAffinities || [])]
+      .sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+
+    // Registrar solo categorías entendidas de forma explícita. La preferencia
+    // influye en el orden futuro, pero nunca reemplaza la intención actual.
+    const learnedCategory = intent.categories[0];
+    if (authenticatedUserId && mongoose.Types.ObjectId.isValid(authenticatedUserId) && learnedCategory) {
+      User.updateOne(
+        { _id: authenticatedUserId, "searchAffinities.category": learnedCategory },
+        { $inc: { "searchAffinities.$.score": 1 }, $set: { "searchAffinities.$.lastSearchedAt": new Date() } }
+      ).then(result => {
+        if (result.modifiedCount) return null;
+        return User.updateOne(
+          { _id: authenticatedUserId, "searchAffinities.category": { $ne: learnedCategory } },
+          { $push: { searchAffinities: { category: learnedCategory, score: 1, lastSearchedAt: new Date() } } }
+        );
+      }).catch(() => {});
+    }
 
     const regexParts = intent.terms.map(t => t.replace(/[.*+?^$()|[\]\\]/g, "\\$&")).filter(Boolean);
     const termRegex = regexParts.length ? new RegExp(regexParts.join("|"), "i") : null;
@@ -155,7 +197,9 @@ exports.smartSearch = async (req, res) => {
       .maxTimeMS(1500);
 
     const radiusSelection = selectSearchRadius(products, lat, lng, radius);
-    const visibleProducts = radiusSelection.products;
+    const visibleProducts = [...radiusSelection.products].sort((a, b) =>
+      affinityScore(b.category, affinities) - affinityScore(a.category, affinities)
+    );
     const productBusinessIds = [...new Set(visibleProducts.map(p => p.businessId?._id?.toString()).filter(Boolean))];
     const productBusinessObjectIds = productBusinessIds
       .filter((id) => mongoose.Types.ObjectId.isValid(id))
@@ -207,6 +251,13 @@ exports.smartSearch = async (req, res) => {
         .lean();
     }
 
+    businesses.sort((a, b) => {
+      const preference = affinityScore(b.categories, affinities) - affinityScore(a.categories, affinities);
+      if (preference) return preference;
+      if (typeof a.distanceMeters === "number" && typeof b.distanceMeters === "number") return a.distanceMeters - b.distanceMeters;
+      return Number(b.rating || 0) - Number(a.rating || 0);
+    });
+
     const mappedBusinesses = businesses.map(b => ({
       ...b,
       distanceLabel: typeof b.distanceMeters === "number"
@@ -236,6 +287,7 @@ exports.smartSearch = async (req, res) => {
     res.json({
       query: q,
       intent,
+      personalized: Boolean(authenticatedUserId && affinities.length),
       products: mappedProducts,
       businesses: mappedBusinesses,
       radius: {

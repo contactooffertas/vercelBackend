@@ -46,6 +46,13 @@ const userSchema = new mongoose.Schema(
     followingBusinesses: [{ type: mongoose.Schema.Types.ObjectId, ref: "Business" }],
     favoriteBusinesses:  [{ type: mongoose.Schema.Types.ObjectId, ref: "Business" }],
 
+    // Afinidades de búsqueda: personalizan el orden sin ocultar resultados.
+    searchAffinities: [{
+      category:       { type: String, required: true },
+      score:          { type: Number, default: 1 },
+      lastSearchedAt: { type: Date, default: Date.now },
+    }],
+
     ratedBusinesses: [
       {
         businessId: { type: mongoose.Schema.Types.ObjectId, ref: "Business" },
