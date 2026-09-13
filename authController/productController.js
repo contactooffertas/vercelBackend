@@ -3,6 +3,7 @@
 const mongoose = require("mongoose");
 const Product  = require("../models/productoModel");
 const Business = require("../models/businessModel");
+const Category = require("../models/categoryModel");
 const { learnFromProduct } = require("../utils/searchService");
 const Featured = require("../models/featuredModel");
 const User     = require("../models/userModel");
@@ -24,6 +25,36 @@ function removeTempFile(path) {
 }
 const { findForbiddenInObject } = require("../utils/contentPolicy");
 const { normalizeCategory, isValidCategory, categoryQueryValues } = require("../utils/categories");
+
+const SUPERMARKET_CATEGORY = "supermercado";
+
+function normalizedBusinessCategories(business) {
+  return [...new Set((business?.categories || []).map(normalizeCategory).filter(Boolean))];
+}
+
+async function validateProductCategory(business, requestedCategory) {
+  const category = normalizeCategory(requestedCategory);
+  if (!category) {
+    return { ok: false, message: "Seleccioná una categoría para el producto" };
+  }
+
+  const businessCategories = normalizedBusinessCategories(business);
+  if (businessCategories.includes(SUPERMARKET_CATEGORY)) {
+    const activeCategory = isValidCategory(category) || await Category.exists({ slug: category, active: true });
+    return activeCategory
+      ? { ok: true, category }
+      : { ok: false, message: "La categoría del producto no está disponible" };
+  }
+
+  if (!businessCategories.includes(category)) {
+    return {
+      ok: false,
+      message: "La categoría del producto debe coincidir con el rubro de tu negocio",
+    };
+  }
+
+  return { ok: true, category };
+}
 
 function getPushNotifier() {
   return require("../routes/pushRoute").notifyBusinessFollowers;
@@ -163,6 +194,11 @@ exports.createProduct = async (req, res) => {
     if (!business.location?.coordinates?.length)
       return res.status(400).json({ message: "Tu negocio no tiene ubicación. Editá tu negocio y agregá una dirección." });
 
+    const categoryValidation = await validateProductCategory(business, req.body.category);
+    if (!categoryValidation.ok) {
+      return res.status(400).json({ message: categoryValidation.message });
+    }
+
     let imageUrl = null, publicId = null;
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path, { folder: "products" });
@@ -173,7 +209,7 @@ exports.createProduct = async (req, res) => {
 
     const {
       price, discount, stock, deliveryRadius, originalPrice,
-      flashOfferHours, flashOfferDiscount,
+      flashOfferHours, flashOfferDiscount, category,
       ...rest
     } = req.body;
 
@@ -186,6 +222,7 @@ exports.createProduct = async (req, res) => {
 
     const newProduct = await Product.create({
       ...rest,
+      category:       categoryValidation.category,
       price:          parseFloat(price),
       originalPrice:  originalPrice ? parseFloat(originalPrice) : null,
       discount:       parseFloat(discount || 0),
@@ -232,6 +269,17 @@ exports.updateProduct = async (req, res) => {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Producto no encontrado" });
 
+    const business = await Business.findOne({ owner: req.user.id });
+    if (!business || product.businessId?.toString() !== business._id.toString()) {
+      return res.status(403).json({ message: "No tenés permiso para gestionar este producto" });
+    }
+
+    const requestedCategory = req.body.category ?? product.category;
+    const categoryValidation = await validateProductCategory(business, requestedCategory);
+    if (!categoryValidation.ok) {
+      return res.status(400).json({ message: categoryValidation.message });
+    }
+
     const previousPublicId = product.imagePublicId;
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path, { folder: "products" });
@@ -245,7 +293,7 @@ exports.updateProduct = async (req, res) => {
 
     const {
       price, discount, stock, deliveryRadius, originalPrice,
-      flashOfferHours, flashOfferDiscount,
+      flashOfferHours, flashOfferDiscount, category,
       ...rest
     } = req.body;
 
@@ -270,6 +318,7 @@ exports.updateProduct = async (req, res) => {
     // Nunca permitir que el vendedor se desbloquee a sí mismo vía este endpoint
     const { blocked, blockedReason, removeImage, ...safeRest } = rest;
     Object.assign(product, safeRest);
+    product.category = categoryValidation.category;
 
     if (product.businessId) {
       const biz = await Business.findById(product.businessId).select("location");

@@ -9,6 +9,7 @@ const fs = require("fs");
 const { findForbiddenInObject } = require("../utils/contentPolicy");
 
 const VALID_CATEGORIES = MARKET_CATEGORIES;
+const SUPERMARKET_CATEGORY = "supermercado";
 
 const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -154,12 +155,16 @@ exports.upsertBusiness = async (req, res) => {
       try { categories = JSON.parse(req.body.categories); }
       catch { categories = Array.isArray(req.body.categories) ? req.body.categories : [req.body.categories]; }
       const activeCategoryDocs = await Category.find({ active: true }).select("slug").lean();
-      const validCategorySlugs = new Set(activeCategoryDocs.map((item) => item.slug));
+      const validCategorySlugs = new Set([
+        ...activeCategoryDocs.map((item) => item.slug),
+        SUPERMARKET_CATEGORY,
+      ]);
       categories = categories
         .map(normalizeCategory)
         .filter((value) => validCategorySlugs.has(value))
         .filter((value, i, arr) => arr.indexOf(value) === i)
         .slice(0, 2);
+      if (categories.includes(SUPERMARKET_CATEGORY)) categories = [SUPERMARKET_CATEGORY];
     }
 
     const phone = (req.body.phone || "").trim();

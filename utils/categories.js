@@ -41,6 +41,7 @@ function normalizeCategory(value) {
     juguetes: 'juguetes',
     libros: 'libros',
     mascotas: 'mascotas',
+    supermercado: 'supermercado',
   };
 
   return aliases[raw] || raw;
