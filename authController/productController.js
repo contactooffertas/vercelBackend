@@ -8,6 +8,20 @@ const Featured = require("../models/featuredModel");
 const User     = require("../models/userModel");
 const cloudinary = require("../config/cloudinary");
 const fs = require("fs");
+
+async function safeCloudinaryDestroy(publicId) {
+  if (!publicId) return;
+  try {
+    await cloudinary.uploader.destroy(publicId, { invalidate: true });
+  } catch (error) {
+    console.error("Cloudinary product cleanup error:", error.message);
+  }
+}
+
+function removeTempFile(path) {
+  if (!path) return;
+  try { if (fs.existsSync(path)) fs.unlinkSync(path); } catch (_) {}
+}
 const { findForbiddenInObject } = require("../utils/contentPolicy");
 const { normalizeCategory, isValidCategory, categoryQueryValues } = require("../utils/categories");
 
@@ -141,6 +155,8 @@ exports.getMyProducts = async (req, res) => {
 };
 
 exports.createProduct = async (req, res) => {
+  let uploadedPublicId = null;
+  let productSaved = false;
   try {
     const business = await Business.findOne({ owner: req.user.id });
     if (!business) return res.status(400).json({ message: "Crea tu negocio primero" });
@@ -152,7 +168,7 @@ exports.createProduct = async (req, res) => {
       const result = await cloudinary.uploader.upload(req.file.path, { folder: "products" });
       imageUrl = result.secure_url;
       publicId = result.public_id;
-      fs.unlinkSync(req.file.path);
+      uploadedPublicId = result.public_id;
     }
 
     const {
@@ -184,6 +200,7 @@ exports.createProduct = async (req, res) => {
       blocked:        false,
       blockedReason:  "",
     });
+    productSaved = true;
 
     getPushNotifier()({
       businessId:      business._id.toString(),
@@ -201,21 +218,29 @@ exports.createProduct = async (req, res) => {
 
     res.status(201).json(normalizeFlashOffer(newProduct.toObject()));
   } catch (err) {
+    if (uploadedPublicId && !productSaved) await safeCloudinaryDestroy(uploadedPublicId);
     res.status(500).json({ message: "Error creando producto", detail: err.message });
+  } finally {
+    removeTempFile(req.file?.path);
   }
 };
 
 exports.updateProduct = async (req, res) => {
+  let uploadedPublicId = null;
+  let productSaved = false;
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Producto no encontrado" });
 
+    const previousPublicId = product.imagePublicId;
     if (req.file) {
-      if (product.imagePublicId) await cloudinary.uploader.destroy(product.imagePublicId);
       const result = await cloudinary.uploader.upload(req.file.path, { folder: "products" });
+      uploadedPublicId = result.public_id;
       product.image = result.secure_url;
       product.imagePublicId = result.public_id;
-      fs.unlinkSync(req.file.path);
+    } else if (req.body.removeImage === true || req.body.removeImage === "true") {
+      product.image = null;
+      product.imagePublicId = null;
     }
 
     const {
@@ -243,7 +268,7 @@ exports.updateProduct = async (req, res) => {
     }
 
     // Nunca permitir que el vendedor se desbloquee a sí mismo vía este endpoint
-    const { blocked, blockedReason, ...safeRest } = rest;
+    const { blocked, blockedReason, removeImage, ...safeRest } = rest;
     Object.assign(product, safeRest);
 
     if (product.businessId) {
@@ -253,9 +278,16 @@ exports.updateProduct = async (req, res) => {
     }
 
     await product.save();
+    productSaved = true;
+    if (previousPublicId && previousPublicId !== product.imagePublicId) {
+      await safeCloudinaryDestroy(previousPublicId);
+    }
     res.json(normalizeFlashOffer(product.toObject()));
   } catch (err) {
+    if (uploadedPublicId && !productSaved) await safeCloudinaryDestroy(uploadedPublicId);
     res.status(500).json({ message: "Error actualizando producto", detail: err.message });
+  } finally {
+    removeTempFile(req.file?.path);
   }
 };
 
@@ -263,8 +295,8 @@ exports.deleteProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Producto no encontrado" });
-    if (product.imagePublicId) await cloudinary.uploader.destroy(product.imagePublicId);
     await Product.findByIdAndDelete(req.params.id);
+    await safeCloudinaryDestroy(product.imagePublicId);
     res.json({ message: "Producto eliminado" });
   } catch (err) {
     res.status(500).json({ message: "Error eliminando producto" });

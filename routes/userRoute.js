@@ -10,6 +10,7 @@ router.get('/profile',          auth,                          userController.ge
 router.put('/update',           auth,                          userController.updateProfile);
 router.put('/change-password',  auth,                          userController.changePassword);
 router.post('/avatar',          auth, upload.single('avatar'), userController.updateAvatar);
+router.delete('/avatar',        auth,                          userController.deleteAvatar);
 
 // ── Ubicación (comprador y vendedor) ─────────────────────────────────────────
 router.put('/location',    auth, userController.saveLocation);

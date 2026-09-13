@@ -6,6 +6,22 @@ const cloudinary = require('../config/cloudinary');
 const bcrypt   = require('bcryptjs');
 const fs       = require('fs');
 
+const DEFAULT_AVATAR = '/assets/offerton.jpg';
+
+async function safeCloudinaryDestroy(publicId) {
+  if (!publicId) return;
+  try {
+    await cloudinary.uploader.destroy(publicId, { invalidate: true });
+  } catch (error) {
+    console.error('Cloudinary avatar cleanup error:', error.message);
+  }
+}
+
+function removeTempFile(path) {
+  if (!path) return;
+  try { if (fs.existsSync(path)) fs.unlinkSync(path); } catch (_) {}
+}
+
 /* GET PROFILE + STATS */
 exports.getProfile = async (req, res) => {
   try {
@@ -74,31 +90,57 @@ exports.changePassword = async (req, res) => {
 
 /* UPDATE AVATAR */
 exports.updateAvatar = async (req, res) => {
+  let uploadedPublicId = null;
+  let avatarSaved = false;
   try {
     if (!req.file) return res.status(400).json({ message: 'No se recibió ninguna imagen' });
 
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
-    if (user.avatarPublicId) {
-      await cloudinary.uploader.destroy(user.avatarPublicId);
-    }
+    const previousPublicId = user.avatarPublicId;
 
     const result = await cloudinary.uploader.upload(req.file.path, {
       folder: 'users/avatars',
       transformation: [{ width: 300, height: 300, crop: 'fill', gravity: 'face' }],
     });
-
-    fs.unlinkSync(req.file.path);
+    uploadedPublicId = result.public_id;
 
     user.avatar         = result.secure_url;
     user.avatarPublicId = result.public_id;
     await user.save();
+    avatarSaved = true;
+
+    if (previousPublicId && previousPublicId !== result.public_id) {
+      await safeCloudinaryDestroy(previousPublicId);
+    }
 
     res.json({ message: 'Avatar actualizado', avatar: result.secure_url });
   } catch (error) {
+    if (uploadedPublicId && !avatarSaved) await safeCloudinaryDestroy(uploadedPublicId);
     console.error('updateAvatar error:', error);
     res.status(500).json({ message: 'Error subiendo avatar' });
+  } finally {
+    removeTempFile(req.file?.path);
+  }
+};
+
+/* DELETE AVATAR */
+exports.deleteAvatar = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+    const previousPublicId = user.avatarPublicId;
+    user.avatar = DEFAULT_AVATAR;
+    user.avatarPublicId = undefined;
+    await user.save();
+    await safeCloudinaryDestroy(previousPublicId);
+
+    res.json({ message: 'Avatar eliminado', avatar: DEFAULT_AVATAR });
+  } catch (error) {
+    console.error('deleteAvatar error:', error);
+    res.status(500).json({ message: 'Error eliminando avatar' });
   }
 };
 
