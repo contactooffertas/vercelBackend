@@ -58,6 +58,14 @@ const messageSchema = new mongoose.Schema(
     },
     text:  { type: String, default: ''   },
     image: { type: String, default: null },
+    editedAt: { type: Date, default: null },
+    replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
+    replySnapshot: {
+      messageId: { type: mongoose.Schema.Types.ObjectId, default: null },
+      text: { type: String, default: '' },
+      image: { type: String, default: null },
+      senderName: { type: String, default: '' },
+    },
     readBy: [
       { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     ],
