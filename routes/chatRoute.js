@@ -15,6 +15,9 @@ const {
   deleteConversation,
   deleteMessage,
   editMessage,
+  clearConversation,
+  toggleUserBlock,
+  setTemporaryMode,
   unblockConversation,    // nuevo — solo admin
 } = require('../authController/chatController');
 
@@ -43,6 +46,9 @@ router.get('/conversations',                    auth, getConversations);
 router.get('/conversations/:id/messages',       auth, getMessages);
 router.post('/conversations/:id/read',          auth, markAsRead);
 router.delete('/conversations/:id',             auth, deleteConversation);
+router.delete('/conversations/:id/messages',    auth, clearConversation);
+router.patch('/conversations/:id/block',        auth, toggleUserBlock);
+router.patch('/conversations/:id/temporary',    auth, setTemporaryMode);
 router.patch('/conversations/:id/unblock',      auth, unblockConversation);  // admin only
 router.post('/messages', auth, upload.single('image'), sendMessage);
 router.patch('/messages/:id',                   auth, editMessage);

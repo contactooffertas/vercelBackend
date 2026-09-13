@@ -37,6 +37,8 @@ async function _formatConv(conv, userId) {
     blockedBy:     conv.blockedBy?.toString() || null,
     blockedAt:     conv.blockedAt     || null,
     blockReportId: conv.blockReportId?.toString() || null,
+    blockedUsers:  (conv.blockedUsers || []).map(id => id.toString()),
+    temporaryMode: conv.temporaryMode || { enabled: false, ttlHours: 24 },
   };
 }
 
@@ -119,9 +121,12 @@ exports.getMessages = async (req, res) => {
     const conv = await Conversation.findOne({ _id: convId, participants: me });
     if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
 
+    const cleared = (conv.clearedAtBy || []).find(entry => entry.user?.toString() === me.toString());
     const msgs = await Message.find({
       conversation: convId,
       deletedBy:    { $nin: [me] },
+      ...(cleared?.at ? { createdAt: { $gt: cleared.at } } : {}),
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
     })
       .populate('sender', 'name avatar logo')
       .sort({ createdAt: 1 })
@@ -134,6 +139,8 @@ exports.getMessages = async (req, res) => {
       blockedBy:     conv.blockedBy?.toString() || null,
       blockedAt:     conv.blockedAt     || null,
       blockReportId: conv.blockReportId?.toString() || null,
+      blockedUsers:  (conv.blockedUsers || []).map(id => id.toString()),
+      temporaryMode: conv.temporaryMode || { enabled: false, ttlHours: 24 },
     });
   } catch (err) {
     console.error('[chat] getMessages ERROR:', err.message);
@@ -153,10 +160,10 @@ exports.sendMessage = async (req, res) => {
     const conv = await Conversation.findOne({ _id: conversationId, participants: me });
     if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
 
-    if (conv.isBlocked) {
+    if (conv.isBlocked || (conv.blockedUsers || []).length) {
       if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       return res.status(403).json({
-        error:      'Esta conversación está bloqueada por un reporte',
+        error:      conv.isBlocked ? 'Esta conversación está bloqueada por un reporte' : 'No se pueden enviar mensajes porque un usuario bloqueó este chat',
         isBlocked:  true,
         blockedBy:  conv.blockedBy?.toString() || null,
         iAmBlocker: me.toString() === conv.blockedBy?.toString(),
@@ -200,6 +207,9 @@ exports.sendMessage = async (req, res) => {
       image:        imageUrl,
       replyTo:      replyTo || null,
       replySnapshot,
+      expiresAt: conv.temporaryMode?.enabled
+        ? new Date(Date.now() + Math.max(1, Math.min(168, conv.temporaryMode.ttlHours || 24)) * 60 * 60 * 1000)
+        : null,
       readBy:       [me],
     });
 
@@ -367,5 +377,62 @@ exports.unblockConversation = async (req, res) => {
   } catch (err) {
     console.error('[chat] unblockConversation:', err);
     res.status(500).json({ error: 'Error al desbloquear conversación' });
+  }
+};
+
+// ─── DELETE /api/chat/conversations/:id/messages — vaciar solo para mí ──────
+exports.clearConversation = async (req, res) => {
+  try {
+    const me = req.user?._id || req.user?.id;
+    const conv = await Conversation.findOne({ _id: req.params.id, participants: me });
+    if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
+    const now = new Date();
+    await Conversation.updateOne(
+      { _id: conv._id },
+      { $pull: { clearedAtBy: { user: me } } }
+    );
+    await Conversation.updateOne(
+      { _id: conv._id },
+      { $push: { clearedAtBy: { user: me, at: now } } }
+    );
+    res.json({ ok: true, clearedAt: now });
+  } catch (err) {
+    console.error('[chat] clearConversation:', err);
+    res.status(500).json({ error: 'Error al vaciar conversación' });
+  }
+};
+
+// ─── PATCH /api/chat/conversations/:id/block — bloqueo personal reversible ─
+exports.toggleUserBlock = async (req, res) => {
+  try {
+    const me = req.user?._id || req.user?.id;
+    const conv = await Conversation.findOne({ _id: req.params.id, participants: me });
+    if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
+    const currentlyBlocked = (conv.blockedUsers || []).some(id => id.toString() === me.toString());
+    await Conversation.updateOne(
+      { _id: conv._id },
+      currentlyBlocked ? { $pull: { blockedUsers: me } } : { $addToSet: { blockedUsers: me } }
+    );
+    res.json({ ok: true, blocked: !currentlyBlocked, blockedByMe: !currentlyBlocked });
+  } catch (err) {
+    console.error('[chat] toggleUserBlock:', err);
+    res.status(500).json({ error: 'Error al cambiar el bloqueo' });
+  }
+};
+
+// ─── PATCH /api/chat/conversations/:id/temporary ────────────────────────────
+exports.setTemporaryMode = async (req, res) => {
+  try {
+    const me = req.user?._id || req.user?.id;
+    const conv = await Conversation.findOne({ _id: req.params.id, participants: me });
+    if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
+    const enabled = Boolean(req.body.enabled);
+    const ttlHours = [1, 24, 168].includes(Number(req.body.ttlHours)) ? Number(req.body.ttlHours) : 24;
+    const temporaryMode = { enabled, ttlHours, enabledBy: enabled ? me : null, updatedAt: new Date() };
+    await Conversation.updateOne({ _id: conv._id }, { $set: { temporaryMode } });
+    res.json({ ok: true, temporaryMode });
+  } catch (err) {
+    console.error('[chat] setTemporaryMode:', err);
+    res.status(500).json({ error: 'Error al configurar mensajes temporales' });
   }
 };
