@@ -141,10 +141,10 @@ function staticIntent(query) {
     for (const root of roots) {
       const normalizedRoot = normalizeText(root);
       if (!normalizedRoot) continue;
+      const rootPattern = new RegExp(`(?:^|\\s)${escapeRegex(normalizedRoot)}(?:$|\\s)`);
       if (
         normalized === normalizedRoot ||
-        tokens.includes(normalizedRoot) ||
-        normalized.includes(normalizedRoot)
+        rootPattern.test(normalized)
       ) {
         score += normalized === normalizedRoot ? 100 : 20;
         normalizedRoot.split(" ").forEach(t => terms.add(t));
