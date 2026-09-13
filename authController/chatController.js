@@ -21,7 +21,10 @@ async function _formatConv(conv, userId) {
   const other = conv.participants.find(
     p => p._id.toString() !== userId.toString()
   );
-  const last = conv.lastMessage;
+  const cleared = (conv.clearedAtBy || []).find(entry => entry.user?.toString() === userId.toString());
+  const last = conv.lastMessage && (!cleared?.at || new Date(conv.lastMessage.createdAt) > new Date(cleared.at))
+    ? conv.lastMessage
+    : null;
   const uc   = await _unreadCount(conv._id, userId);
 
   return {
@@ -394,6 +397,10 @@ exports.clearConversation = async (req, res) => {
     await Conversation.updateOne(
       { _id: conv._id },
       { $push: { clearedAtBy: { user: me, at: now } } }
+    );
+    await Message.updateMany(
+      { conversation: conv._id, sender: { $ne: me }, readBy: { $nin: [me] } },
+      { $addToSet: { readBy: me } }
     );
     res.json({ ok: true, clearedAt: now });
   } catch (err) {
