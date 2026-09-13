@@ -145,7 +145,7 @@ exports.getMessages = async (req, res) => {
 exports.sendMessage = async (req, res) => {
   try {
     const me     = req.user?._id || req.user?.id;
-    const { conversationId, text } = req.body;
+    const { conversationId, text, replyTo } = req.body;
 
     if (!conversationId) return res.status(400).json({ error: 'conversationId requerido' });
     if (!text?.trim() && !req.file) return res.status(400).json({ error: 'Enviá texto o imagen' });
@@ -180,11 +180,26 @@ exports.sendMessage = async (req, res) => {
       }
     }
 
+    let replySnapshot = undefined;
+    if (replyTo) {
+      const quoted = await Message.findOne({ _id: replyTo, conversation: conversationId })
+        .populate('sender', 'name');
+      if (!quoted) return res.status(400).json({ error: 'El mensaje citado no existe' });
+      replySnapshot = {
+        messageId: quoted._id,
+        text: quoted.text || '',
+        image: quoted.image || null,
+        senderName: quoted.sender?.name || 'Mensaje',
+      };
+    }
+
     const msg = await Message.create({
       conversation: conversationId,
       sender:       me,
       text:         text?.trim() || '',
       image:        imageUrl,
+      replyTo:      replyTo || null,
+      replySnapshot,
       readBy:       [me],
     });
 
@@ -216,6 +231,33 @@ exports.sendMessage = async (req, res) => {
     if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     console.error('[chat] sendMessage:', err);
     res.status(500).json({ error: 'Error al enviar mensaje' });
+  }
+};
+
+// ─── PATCH /api/chat/messages/:id ────────────────────────────────────────────
+exports.editMessage = async (req, res) => {
+  try {
+    const me = req.user?._id || req.user?.id;
+    const text = String(req.body.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'El mensaje no puede quedar vacío' });
+    if (await findForbiddenInObject({ text })) return res.status(400).json({ error: 'El mensaje contiene términos no permitidos' });
+
+    const msg = await Message.findOne({ _id: req.params.id, sender: me });
+    if (!msg) return res.status(404).json({ error: 'Mensaje no encontrado' });
+    const conv = await Conversation.findOne({ _id: msg.conversation, participants: me });
+    if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
+    if (conv.isBlocked) return res.status(403).json({ error: 'Esta conversación está bloqueada' });
+
+    msg.text = text;
+    msg.editedAt = new Date();
+    await msg.save();
+    const populated = await Message.findById(msg._id).populate('sender', 'name avatar logo');
+    const io = req.app.get('io');
+    conv.participants.forEach(pid => io?.to(`user_${pid.toString()}`).emit('message_edited', populated));
+    res.json(populated);
+  } catch (err) {
+    console.error('[chat] editMessage:', err);
+    res.status(500).json({ error: 'Error al editar mensaje' });
   }
 };
 
@@ -271,7 +313,12 @@ exports.deleteMessage = async (req, res) => {
     const msg = await Message.findOne({ _id: req.params.id, sender: me });
     if (!msg) return res.status(404).json({ error: 'Mensaje no encontrado' });
 
-    await Message.updateOne({ _id: msg._id }, { $addToSet: { deletedBy: me } });
+    await Message.deleteOne({ _id: msg._id });
+    const newest = await Message.findOne({ conversation: msg.conversation }).sort({ createdAt: -1 });
+    await Conversation.findByIdAndUpdate(msg.conversation, {
+      lastMessage: newest?._id || null,
+      ...(newest ? { updatedAt: newest.createdAt } : {}),
+    });
 
     const io = req.app.get('io');
     if (io) {
