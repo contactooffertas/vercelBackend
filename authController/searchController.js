@@ -31,6 +31,61 @@ function slugify(value) {
   return normalizeText(value).replace(/\s+/g, "-").replace(/-+/g, "-");
 }
 
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const earthRadius = 6_371_000;
+  const toRad = value => value * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function productDistance(product, lat, lng) {
+  const coordinates = product.location?.coordinates?.length
+    ? product.location.coordinates
+    : product.businessId?.location?.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
+  const [productLng, productLat] = coordinates.map(Number);
+  if (!Number.isFinite(productLat) || !Number.isFinite(productLng)) return null;
+  return distanceMeters(lat, lng, productLat, productLng);
+}
+
+function selectSearchRadius(products, lat, lng, requestedRadius) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || requestedRadius <= 0) {
+    return { products, requestedRadius, effectiveRadius: requestedRadius, expanded: false };
+  }
+
+  const withDistance = products.map(product => ({
+    ...product,
+    distanceMeters: productDistance(product, lat, lng),
+  }));
+  const located = withDistance.filter(product => Number.isFinite(product.distanceMeters));
+  if (!located.length) {
+    return { products: withDistance, requestedRadius, effectiveRadius: requestedRadius, expanded: false };
+  }
+
+  const steps = [...new Set([
+    requestedRadius,
+    ...(requestedRadius < 5_000 ? [5_000] : []),
+    ...(requestedRadius < 10_000 ? [10_000] : []),
+  ])].sort((a, b) => a - b);
+
+  for (const effectiveRadius of steps) {
+    const matches = located.filter(product => product.distanceMeters <= effectiveRadius);
+    if (matches.length) {
+      return {
+        products: matches,
+        requestedRadius,
+        effectiveRadius,
+        expanded: effectiveRadius > requestedRadius,
+      };
+    }
+  }
+
+  return { products: located, requestedRadius, effectiveRadius: 0, expanded: true };
+}
+
 exports.publicCategories = async (_req, res) => {
   try {
     await ensureCategories();
@@ -99,7 +154,9 @@ exports.smartSearch = async (req, res) => {
       .lean()
       .maxTimeMS(1500);
 
-    const productBusinessIds = [...new Set(products.map(p => p.businessId?._id?.toString()).filter(Boolean))];
+    const radiusSelection = selectSearchRadius(products, lat, lng, radius);
+    const visibleProducts = radiusSelection.products;
+    const productBusinessIds = [...new Set(visibleProducts.map(p => p.businessId?._id?.toString()).filter(Boolean))];
     const productBusinessObjectIds = productBusinessIds
       .filter((id) => mongoose.Types.ObjectId.isValid(id))
       .map((id) => new mongoose.Types.ObjectId(id));
@@ -120,7 +177,7 @@ exports.smartSearch = async (req, res) => {
           $geoNear: {
             near: { type: "Point", coordinates: [lng, lat] },
             distanceField: "distanceMeters",
-            maxDistance: radius > 0 ? radius : 999999999,
+            maxDistance: radiusSelection.effectiveRadius > 0 ? radiusSelection.effectiveRadius : 999999999,
             spherical: true,
             query: geoQuery,
           },
@@ -157,7 +214,7 @@ exports.smartSearch = async (req, res) => {
         : undefined,
     }));
 
-    const mappedProducts = products
+    const mappedProducts = visibleProducts
       .filter((product) => !product.businessId?.blocked)
       .map((product) => ({
         ...normalizeProductMedia(product),
@@ -181,6 +238,11 @@ exports.smartSearch = async (req, res) => {
       intent,
       products: mappedProducts,
       businesses: mappedBusinesses,
+      radius: {
+        requested: radiusSelection.requestedRadius,
+        effective: radiusSelection.effectiveRadius,
+        expanded: radiusSelection.expanded,
+      },
     });
   } catch (error) {
     console.error("smartSearch:", error);
