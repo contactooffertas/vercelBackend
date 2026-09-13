@@ -13,9 +13,19 @@ const DEFAULT_CATEGORIES = [
 const CATEGORY_ROOTS = {
   "electronica": ["electronica","televisor","tv","audio","auriculares","parlante","cargador","camara","radio","equipo de sonido","microfono","proyector","control remoto"],
   "tecnologia": ["tecnologia","celular","telefono","smartphone","notebook","laptop","computadora","pc","monitor","tablet","teclado","mouse","impresora","router","wifi","hardware","software","ssd","disco","memoria ram","procesador","placa de video","consola","joystick"],
-  "ropa-moda": ["zapatillas","zapatos","pollera","remera","camisa","pantalon","jean","vestido","campera","buzo","gorra","sombrero","cartera","mochila","cinturon","medias","ropa","moda","calzado","accesorios"],
+  "ropa-moda": [
+    "ropa","moda","tienda de ropa","calzado","accesorios","zapatillas","zapatos","pollera","remera",
+    "camisa","pantalon","jean","vestido","campera","buzo","gorra","gorro","sombrero","chalina",
+    "bermuda","chaleco","cartera","mochila","cinturon","medias","medias de hombre","medias de niños",
+    "medias de niñas","medias de nenes","medias de nenas","medias de futbol","medias para deportes",
+    "camiseta de futbol","boxer","boxer para hombres","boxer para niños","ropa interior hombre",
+    "ropa interior niños","ropa interior mujer","ropa interior niñas","bombachas para nenas",
+    "ropa interior para nenas","ropa interior para nenes","ropa para regalo","para regalo",
+    "tanga","tanga roja","tanga azul","tanga verde","tanga negra","tanga blanca",
+    "culote","culote rojo","culote azul","culote verde","culote negro","culote blanco"
+  ],
   "hogar": ["mesa","silla","sillon","mueble","colchon","cama","almohada","sabana","cortina","lampara","decoracion","cocina","heladera","freezer","microondas","vajilla","termo","mate","organizador","limpieza"],
-  "deportes": ["pelota","futbol","basquet","voley","tenis","raqueta","pesas","mancuernas","bicicleta","casco","botines","camiseta","short","fitness","gimnasio","running","yoga","protector","guantes","deporte"],
+  "deportes": ["pelota","futbol","basquet","voley","tenis","raqueta","pesas","mancuernas","bicicleta","casco","botines","short","fitness","gimnasio","running","yoga","protector","guantes","deporte"],
   "alimentos": ["comida","alimentos","pan","panaderia","panadero","panificados","facturas","medialunas","bizcochos","torta","galletitas","chocolate","cafe","te","yerba","mate","frutas","verduras","carne","asado","chorizo","chorizos","pollo","pollos","carniceria","polleria","almacen","supermercado","pasta","queso","fiambre","bebidas","delivery"],
   "salud-belleza": ["perfume","maquillaje","crema","shampoo","acondicionador","jabon","desodorante","labial","mascara","esmalte","cepillo","salud","belleza","cosmetica","skincare","protector solar","barberia","peluqueria","uñas","spa"],
   "automotriz": ["automotriz","automotor","auto","moto","cubierta","neumatico","bateria","aceite","filtro","repuesto","amortiguador","freno","llanta","casco","lavado","detailing","accesorios auto","stereo","alarma","motor","taller"],
