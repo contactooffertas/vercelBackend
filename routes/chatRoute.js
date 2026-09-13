@@ -14,6 +14,7 @@ const {
   markAsRead,
   deleteConversation,
   deleteMessage,
+  editMessage,
   unblockConversation,    // nuevo — solo admin
 } = require('../authController/chatController');
 
@@ -44,6 +45,7 @@ router.post('/conversations/:id/read',          auth, markAsRead);
 router.delete('/conversations/:id',             auth, deleteConversation);
 router.patch('/conversations/:id/unblock',      auth, unblockConversation);  // admin only
 router.post('/messages', auth, upload.single('image'), sendMessage);
+router.patch('/messages/:id',                   auth, editMessage);
 router.delete('/messages/:id',                  auth, deleteMessage);
 
 module.exports = router;
