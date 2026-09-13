@@ -382,7 +382,9 @@ exports.requestProductReview = async (req, res) => {
 // ─────────────────────────────────────────────
 
 function estaEnRango({ p, userLat, userLng, hasUserLocation, maxUserRadiusKM }) {
-  if (!hasUserLocation) return !p.deliveryRadius || p.deliveryRadius === 0;
+  // Sin ubicación no ocultamos productos; la distancia se aplica cuando hay
+  // una posición real contra la cual calcularla.
+  if (!hasUserLocation) return true;
 
   const refLat = p.location?.coordinates?.[1] ?? p.business?.location?.coordinates?.[1];
   const refLng = p.location?.coordinates?.[0] ?? p.business?.location?.coordinates?.[0];
@@ -429,10 +431,15 @@ exports.getFeaturedProducts = async (req, res) => {
     const maxUserRadiusKM = userRadius ? parseInt(userRadius) / 1000 : null;
     const maxResults = parseInt(limit) || 40;
 
+    const categoryFilter = category
+      ? { category: { $in: categoryQueryValues(category) } }
+      : {};
+
     const featuredIndividual = await Product.find({
       featuredPaid:  true,
       featuredUntil: { $gte: now },
       blocked:       { $ne: true },
+      ...categoryFilter,
     })
       .populate("businessId", BIZ_SELECT)
       .lean();
@@ -453,6 +460,7 @@ exports.getFeaturedProducts = async (req, res) => {
         businessId: { $in: featuredBizIds },
         _id:        { $nin: [...featuredIndividualIds] },
         blocked:    { $ne: true },
+        ...categoryFilter,
       })
         .populate("businessId", BIZ_SELECT)
         .lean();
@@ -499,6 +507,7 @@ exports.getFeaturedProducts = async (req, res) => {
         _id:          { $nin: [...excludeIds] },
         featuredPaid: { $ne: true },
         blocked:      { $ne: true },
+        ...categoryFilter,
       })
         .limit(maxResults * 3)
         .populate("businessId", BIZ_SELECT)

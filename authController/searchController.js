@@ -14,6 +14,18 @@ const {
   seedForCategory,
 } = require("../utils/searchService");
 const { findManagedForbiddenText } = require("../utils/contentPolicy");
+const cloudinary = require("../config/cloudinary");
+
+function normalizeProductMedia(product) {
+  if (!product) return product;
+  const image = product.image || product.imageUrl || product.photo ||
+    product.thumbnail || (Array.isArray(product.images) ? product.images.find(Boolean) : null);
+  if (image) product.image = image;
+  else if (product.imagePublicId) {
+    try { product.image = cloudinary.url(product.imagePublicId, { secure: true }); } catch {}
+  }
+  return product;
+}
 
 function slugify(value) {
   return normalizeText(value).replace(/\s+/g, "-").replace(/-+/g, "-");
@@ -74,14 +86,11 @@ exports.smartSearch = async (req, res) => {
     const termRegex = regexParts.length ? new RegExp(regexParts.join("|"), "i") : null;
 
     const productQuery = { blocked: { $ne: true } };
-    if (termRegex || intent.categories.length) {
-      productQuery.$or = [];
-      if (termRegex) {
-        productQuery.$or.push({ name: termRegex }, { description: termRegex });
-      }
-      if (intent.categories.length) {
-        productQuery.$or.push({ category: { $in: intent.categories.flatMap(categoryQueryValues) } });
-      }
+    // Una categoría resuelta es un filtro obligatorio, no una alternativa.
+    if (intent.categories.length) {
+      productQuery.category = { $in: intent.categories.flatMap(categoryQueryValues) };
+    } else if (termRegex) {
+      productQuery.$or = [{ name: termRegex }, { description: termRegex }];
     }
 
     const products = await Product.find(productQuery)
@@ -151,7 +160,7 @@ exports.smartSearch = async (req, res) => {
     const mappedProducts = products
       .filter((product) => !product.businessId?.blocked)
       .map((product) => ({
-        ...product,
+        ...normalizeProductMedia(product),
         business: product.businessId
           ? {
               _id: product.businessId._id,
