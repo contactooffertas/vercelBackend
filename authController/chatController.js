@@ -226,6 +226,7 @@ exports.sendMessage = async (req, res) => {
       expiresAt: conv.temporaryMode?.enabled
         ? new Date(Date.now() + Math.max(1, Math.min(168, conv.temporaryMode.ttlHours || 24)) * 60 * 60 * 1000)
         : null,
+      deliveredBy:  [me],
       readBy:       [me],
     });
 
@@ -243,7 +244,7 @@ exports.sendMessage = async (req, res) => {
       title: conv.kind === 'group' ? `${conv.name || 'Grupo'} · ${populated.sender?.name || 'Mensaje'}` : `Mensaje de ${populated.sender?.name || 'Rosario Market'}`,
       body: populated.text || 'Te enviaron una imagen', url: `/chatpage?conversationId=${conversationId}`,
       tag: `chat-${conversationId}`, type: conv.kind === 'group' ? 'group_message' : 'chat_message', icon: populated.sender?.avatar || populated.sender?.logo,
-      conversationId: String(conversationId),
+      conversationId: String(conversationId), messageId: String(populated._id),
     }).catch(err => console.error('[chat push]', err.message));
 
     // ── FIX CRÍTICO: emitir a sala personal de cada participante ──────────
@@ -309,6 +310,30 @@ exports.editMessage = async (req, res) => {
   } catch (err) {
     console.error('[chat] editMessage:', err);
     res.status(500).json({ error: 'Error al editar mensaje' });
+  }
+};
+
+// ─── POST /api/chat/messages/:id/delivered ───────────────────────────────────
+exports.markDelivered = async (req, res) => {
+  try {
+    const me = req.user?._id || req.user?.id;
+    const msg = await Message.findById(req.params.id);
+    if (!msg) return res.status(404).json({ error: 'Mensaje no encontrado' });
+    const conv = await Conversation.findOne({ _id: msg.conversation, participants: me });
+    if (!conv) return res.status(403).json({ error: 'Sin acceso' });
+    if (String(msg.sender) !== String(me)) {
+      await Message.updateOne({ _id: msg._id }, { $addToSet: { deliveredBy: me } });
+      const io = req.app.get('io');
+      conv.participants.forEach(pid => io?.to(`user_${pid.toString()}`).emit('message_delivered', {
+        messageId: String(msg._id),
+        conversationId: String(msg.conversation),
+        userId: String(me),
+      }));
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[chat] delivered:', err);
+    res.status(500).json({ error: 'No se pudo confirmar la entrega' });
   }
 };
 
