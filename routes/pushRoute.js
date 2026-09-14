@@ -233,12 +233,15 @@ async function notifyUsers(userIds, data) {
     const devices = await FcmDevice.find({ user: { $in: ids }, active: true }).lean();
     await Promise.allSettled(devices.map(async device => {
       try {
-        // Data-only: Android always wakes RosarioMessagingService, even when
-        // the WebView/app is backgrounded. This is required for the native
-        // notification, launcher badge and delivery acknowledgement to share
-        // one reliable code path.
+        // notification + data: Android itself displays the notification when
+        // an OEM suspends the app, while data keeps deep-link and receipt info.
         await messaging.send({
           token: device.token,
+          notification: {
+            title: String(data.title || 'Rosario Market'),
+            body: String(data.body || 'Tenés una notificación nueva'),
+            ...(data.image ? { imageUrl: String(data.image) } : {}),
+          },
           data: {
             title: String(data.title || 'Rosario Market'),
             body: String(data.body || 'Tenés una notificación nueva'),
@@ -254,8 +257,27 @@ async function notifyUsers(userIds, data) {
           android: {
             priority: 'high',
             ttl: 86400000,
+            notification: {
+              channelId: 'rm_notifications_v397',
+              icon: 'ic_rm_notification',
+              sound: 'default',
+              visibility: 'public',
+              notificationCount: Math.max(1, Number(data.badgeCount || 1)),
+              tag: String(data.messageId || data.tag || ('rm-' + Date.now())),
+              defaultVibrateTimings: true,
+            },
           },
         });
+
+        // FCM accepted the notification for this recipient. Persist delivery
+        // so the sender sees two ticks without waiting for the receiver to open.
+        if (data.messageId) {
+          const { Message } = require('../models/chatModel');
+          await Message.updateOne(
+            { _id: data.messageId },
+            { $addToSet: { deliveredBy: device.user } },
+          );
+        }
       } catch (err) {
         console.error('[FCM send]', {
           code: err.code || 'unknown',
