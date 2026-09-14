@@ -9,24 +9,32 @@ const FcmDevice = require('../models/fcmDeviceModel');
 
 function firebaseMessaging() {
   try {
-    const admin = require('firebase-admin');
-    if (!admin.apps.length) {
-      const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-      if (!raw) return null;
-      const credentials = JSON.parse(raw);
-      // Vercel environment variables frequently preserve private-key newlines
-      // as the two characters "\\n". Firebase requires real line breaks.
-      if (typeof credentials.private_key === 'string') {
-        credentials.private_key = credentials.private_key.replace(/\\\\n/g, '\n');
-      }
-      admin.initializeApp({
-        credential: admin.credential.cert(credentials),
-        projectId: credentials.project_id || 'rosariomarket-fdd7d',
-      });
+    const { cert, getApps, initializeApp } = require('firebase-admin/app');
+    const { getMessaging } = require('firebase-admin/messaging');
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (!raw) {
+      firebaseMessaging.lastError = 'FIREBASE_SERVICE_ACCOUNT_JSON is missing';
+      return null;
     }
-    return admin.messaging();
-  } catch (err) { console.error('[FCM init]', err.message); return null; }
+
+    const credentials = JSON.parse(raw);
+    if (typeof credentials.private_key === 'string') {
+      credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+    }
+
+    const app = getApps()[0] || initializeApp({
+      credential: cert(credentials),
+      projectId: credentials.project_id || 'rosariomarket-fdd7d',
+    });
+    firebaseMessaging.lastError = null;
+    return getMessaging(app);
+  } catch (err) {
+    firebaseMessaging.lastError = err?.message || err?.code || String(err);
+    console.error('[FCM init]', firebaseMessaging.lastError);
+    return null;
+  }
 }
+firebaseMessaging.lastError = null;
 
 // ── Configurar VAPID (generá las keys con: npx web-push generate-vapid-keys) ──
 webpush.setVapidDetails(
@@ -59,6 +67,7 @@ router.get("/fcm/diagnostics", (_req, res) => {
       hasPrivateKey: Boolean(credentials.private_key),
       privateKeyLooksValid: typeof credentials.private_key === "string"
         && credentials.private_key.includes("BEGIN PRIVATE KEY"),
+      initializationError: firebaseMessaging.lastError,
     });
   } catch (error) {
     return res.status(503).json({
