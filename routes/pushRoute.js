@@ -14,7 +14,15 @@ function firebaseMessaging() {
       const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
       if (!raw) return null;
       const credentials = JSON.parse(raw);
-      admin.initializeApp({ credential: admin.credential.cert(credentials) });
+      // Vercel environment variables frequently preserve private-key newlines
+      // as the two characters "\\n". Firebase requires real line breaks.
+      if (typeof credentials.private_key === 'string') {
+        credentials.private_key = credentials.private_key.replace(/\\\\n/g, '\n');
+      }
+      admin.initializeApp({
+        credential: admin.credential.cert(credentials),
+        projectId: credentials.project_id || 'rosariomarket-fdd7d',
+      });
     }
     return admin.messaging();
   } catch (err) { console.error('[FCM init]', err.message); return null; }
@@ -47,6 +55,10 @@ router.get("/fcm/diagnostics", (_req, res) => {
       projectId,
       expectedProjectId: "rosariomarket-fdd7d",
       projectMatches: projectId === "rosariomarket-fdd7d",
+      hasClientEmail: Boolean(credentials.client_email),
+      hasPrivateKey: Boolean(credentials.private_key),
+      privateKeyLooksValid: typeof credentials.private_key === "string"
+        && credentials.private_key.includes("BEGIN PRIVATE KEY"),
     });
   } catch (error) {
     return res.status(503).json({
