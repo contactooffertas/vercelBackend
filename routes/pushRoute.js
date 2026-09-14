@@ -135,4 +135,21 @@ async function notifyBusinessFollowers({
   }
 }
 
-module.exports = { router, notifyBusinessFollowers };
+async function notifyUsers(userIds, data) {
+  const ids = [...new Set((userIds || []).map(String).filter(Boolean))];
+  if (!ids.length) return;
+  const subs = await PushSub.find({ user: { $in: ids } }).lean();
+  const payload = JSON.stringify({
+    title: data.title || 'Rosario Market', body: data.body || '', url: data.url || '/',
+    icon: data.icon || 'https://www.rosariomarket.com.ar/assets/offerton-192.png',
+    badge: 'https://www.rosariomarket.com.ar/assets/offerton-192.png',
+    tag: data.tag || 'rm-message', renotify: true, vibrate: [180, 80, 180],
+    badgeCount: Number(data.badgeCount || 1), type: data.type || 'general',
+  });
+  await Promise.allSettled(subs.map(async doc => {
+    try { await webpush.sendNotification(doc.subscription, payload); }
+    catch (err) { if ([404, 410].includes(err.statusCode)) await PushSub.deleteOne({ _id: doc._id }); }
+  }));
+}
+
+module.exports = { router, notifyBusinessFollowers, notifyUsers };
