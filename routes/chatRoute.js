@@ -2,8 +2,6 @@
 const express = require('express');
 const router  = express.Router();
 const multer  = require('multer');
-const path    = require('path');
-const fs      = require('fs');
 
 const auth = require('../middleware/authMiddleware');
 const {
@@ -24,19 +22,10 @@ const {
   reactToMessage,
 } = require('../authController/chatController');
 
-const uploadDir = path.join(__dirname, '../uploads/chat');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, uploadDir),
-  filename:    (_, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    cb(null, `${unique}${path.extname(file.originalname)}`);
-  },
-});
-
 const upload = multer({
-  storage,
+  // Vercel solo garantiza almacenamiento efímero en /tmp. Mantener el archivo
+  // en memoria permite enviarlo directamente a Cloudinary sin tocar disco.
+  storage: multer.memoryStorage(),
   limits:     { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
