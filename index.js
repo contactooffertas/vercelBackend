@@ -29,6 +29,7 @@ const searchRoutes          = require('./routes/searchRoute');
 
 // Se carga primero pushRoute para inicializar web-push/VAPID una sola vez.
 const { router: pushRoutes } = require('./routes/pushRoute');
+const serviceProviderRoutes = require('./routes/serviceProviderRoute');
 const geoPushRoutes = require('./routes/geoPushRoute');
 
 const app = express();
@@ -101,6 +102,7 @@ app.use('/api/cart',            cartRoutes);
 app.use('/api/orders',          orderRoutes);
 app.use('/api/chat',            chatRoutes);
 app.use('/api/push',            pushRoutes);
+app.use('/api/services',        serviceProviderRoutes);
 app.use('/api/push-geo',        geoPushRoutes);
 app.use('/api/reports',         reportRoutes);
 app.use('/api/admin',           adminRoutes);
