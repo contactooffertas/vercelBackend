@@ -87,6 +87,9 @@ const messageSchema = new mongoose.Schema(
       emoji: { type: String, enum: ['👍','❤️','😂','😮','😢','🙏','✅'], required: true },
       createdAt: { type: Date, default: Date.now },
     }],
+    deliveredBy: [
+      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    ],
     readBy: [
       { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     ],
