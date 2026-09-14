@@ -182,7 +182,7 @@ async function notifyUsers(userIds, data) {
     const devices = await FcmDevice.find({ user: { $in: ids }, active: true }).lean();
     await Promise.allSettled(devices.map(async device => {
       try {
-        await messaging.send({ token: device.token, notification: { title: data.title || 'Rosario Market', body: data.body || '' }, data: {
+        await messaging.send({ token: device.token, data: {
           title: data.title || 'Rosario Market', body: data.body || '', url: data.url || '/chatpage',
           conversationId: String(data.conversationId || ''), badgeCount: String(data.badgeCount || 1), type: data.type || 'general',
         }, android: { priority: 'high', notification: { channelId: 'rm_chat_messages', sound: 'default', notificationCount: Number(data.badgeCount || 1), tag: data.tag || 'rm-chat' } } });
