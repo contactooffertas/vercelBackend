@@ -184,7 +184,7 @@ async function notifyUsers(userIds, data) {
       try {
         await messaging.send({ token: device.token, data: {
           title: data.title || 'Rosario Market', body: data.body || '', url: data.url || '/chatpage',
-          conversationId: String(data.conversationId || ''), badgeCount: String(data.badgeCount || 1), type: data.type || 'general',
+          conversationId: String(data.conversationId || ''), messageId: String(data.messageId || ''), badgeCount: String(data.badgeCount || 1), type: data.type || 'general',
         }, android: { priority: 'high', notification: { channelId: 'rm_chat_messages', sound: 'default', notificationCount: Number(data.badgeCount || 1), tag: data.tag || 'rm-chat' } } });
       } catch (err) {
         if (['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(err.code)) await FcmDevice.deleteOne({ _id: device._id });
