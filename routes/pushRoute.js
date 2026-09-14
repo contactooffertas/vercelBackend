@@ -182,26 +182,27 @@ async function notifyUsers(userIds, data) {
     const devices = await FcmDevice.find({ user: { $in: ids }, active: true }).lean();
     await Promise.allSettled(devices.map(async device => {
       try {
+        // Data-only: Android always wakes RosarioMessagingService, even when
+        // the WebView/app is backgrounded. This is required for the native
+        // notification, launcher badge and delivery acknowledgement to share
+        // one reliable code path.
         await messaging.send({
           token: device.token,
-          notification: {
-            title: data.title || 'Rosario Market',
-            body: data.body || 'Tenés un mensaje nuevo',
-          },
           data: {
-            title: data.title || 'Rosario Market', body: data.body || '', url: data.url || '/chatpage',
-            conversationId: String(data.conversationId || ''), messageId: String(data.messageId || ''), badgeCount: String(data.badgeCount || 1), type: data.type || 'general',
+            title: String(data.title || 'Rosario Market'),
+            body: String(data.body || 'Tenés una notificación nueva'),
+            url: String(data.url || '/'),
+            icon: String(data.icon || ''),
+            image: String(data.image || ''),
+            conversationId: String(data.conversationId || ''),
+            messageId: String(data.messageId || ''),
+            badgeCount: String(data.badgeCount || 1),
+            type: String(data.type || 'general'),
+            tag: String(data.messageId || data.tag || ('rm-' + Date.now())),
           },
           android: {
             priority: 'high',
-            notification: {
-              channelId: 'rm_chat_messages_v2',
-              sound: 'default',
-              notificationCount: Number(data.badgeCount || 1),
-              tag: data.messageId || data.tag || 'rm-chat',
-              visibility: 'public',
-              defaultVibrateTimings: true,
-            },
+            ttl: 86400000,
           },
         });
       } catch (err) {
