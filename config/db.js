@@ -9,7 +9,11 @@ const connectDB = async () => {
     connectionPromise = mongoose.connect(process.env.MONGO_URI, {
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 20000,
-      maxPoolSize: 10,
+      // Vercel puede levantar varias instancias en paralelo. Un pool pequeño
+      // por instancia evita agotar las conexiones del clúster Atlas M0.
+      maxPoolSize: 3,
+      minPoolSize: 0,
+      maxIdleTimeMS: 30000,
     })
       .then((conn) => {
         console.log("✅ MongoDB conectado");
