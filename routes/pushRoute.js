@@ -27,6 +27,36 @@ webpush.setVapidDetails(
   "aGmJeLDh7nI-_FnpDVVhrx2Yk8xDa80unM1b1t__MB8",
 );
 
+// Diagnostic contains no credential material. It verifies that the deployed
+// backend and the Android app point to the same Firebase project.
+router.get("/fcm/diagnostics", (_req, res) => {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!raw) {
+    return res.status(503).json({
+      configured: false,
+      expectedProjectId: "rosariomarket-fdd7d",
+      error: "FIREBASE_SERVICE_ACCOUNT_JSON is missing",
+    });
+  }
+  try {
+    const credentials = JSON.parse(raw);
+    const projectId = credentials.project_id || "";
+    const messaging = firebaseMessaging();
+    return res.status(messaging ? 200 : 503).json({
+      configured: Boolean(messaging),
+      projectId,
+      expectedProjectId: "rosariomarket-fdd7d",
+      projectMatches: projectId === "rosariomarket-fdd7d",
+    });
+  } catch (error) {
+    return res.status(503).json({
+      configured: false,
+      expectedProjectId: "rosariomarket-fdd7d",
+      error: "FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON",
+    });
+  }
+});
+
 // ─── POST /api/push/subscribe ─────────────────────────────────────────────
 // El browser llama esto cuando el user acepta notificaciones
 router.post("/subscribe", auth, async (req, res) => {
