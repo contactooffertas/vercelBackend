@@ -12,6 +12,7 @@ const {
   getMessages,
   sendMessage,
   markAsRead,
+  markDelivered,
   deleteConversation,
   deleteMessage,
   editMessage,
@@ -48,6 +49,7 @@ router.post('/groups',                          auth, createGroup);
 router.get('/conversations',                    auth, getConversations);
 router.get('/conversations/:id/messages',       auth, getMessages);
 router.post('/conversations/:id/read',          auth, markAsRead);
+router.post('/messages/:id/delivered',           auth, markDelivered);
 router.delete('/conversations/:id',             auth, deleteConversation);
 router.delete('/conversations/:id/messages',    auth, clearConversation);
 router.patch('/conversations/:id/block',        auth, toggleUserBlock);
