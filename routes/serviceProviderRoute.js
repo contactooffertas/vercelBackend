@@ -7,6 +7,8 @@ const upload = multer({ dest: '/tmp/rm-service-uploads', limits: { fileSize: 5 *
 router.get('/', c.list);
 router.get('/mine', auth, c.getMine);
 router.post('/mine', auth, upload.single('avatar'), c.upsertMine);
+router.delete('/mine/avatar', auth, c.deleteMyAvatar);
+router.delete('/mine', auth, c.deleteMine);
 router.post('/mine/verification', auth, c.requestVerification);
 router.get('/admin/verifications', auth, c.listPendingVerification);
 router.patch('/admin/verifications/:id', auth, c.resolveVerification);
