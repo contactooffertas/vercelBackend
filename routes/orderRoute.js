@@ -366,8 +366,12 @@ router.patch("/:id/ship", auth, async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Orden no encontrada" });
 
-    const business = await Business.findOne({ owner: req.user.id }).select("_id").lean();
-    if (!business || order.businessId?.toString() !== business._id.toString()) {
+    const business = await Business.findOne({ owner: req.user.id }).select("_id name").lean();
+    const ownsOrder = business && (
+      order.businessId?.toString() === business._id.toString() ||
+      (!order.businessId && order.businessName === business.name)
+    );
+    if (!ownsOrder) {
       return res.status(403).json({ message: "No estás autorizado para despachar este pedido." });
     }
     if (!["pending", "confirmed"].includes(order.status)) {
@@ -435,6 +439,7 @@ router.patch("/:id/keep", auth, async (req, res) => {
       return res.status(403).json({ message: "No autorizado" });
 
     order.status = "delivered";
+    order.sellerSeenAt = null;
     await order.save();
 
     // ── Notificar al vendedor que el pedido fue recibido ──────────────────
