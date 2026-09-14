@@ -195,10 +195,10 @@ async function notifyUsers(userIds, data) {
           android: {
             priority: 'high',
             notification: {
-              channelId: 'rm_chat_messages',
+              channelId: 'rm_chat_messages_v2',
               sound: 'default',
               notificationCount: Number(data.badgeCount || 1),
-              tag: data.tag || 'rm-chat',
+              tag: data.messageId || data.tag || 'rm-chat',
               visibility: 'public',
               defaultVibrateTimings: true,
             },
