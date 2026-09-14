@@ -5,6 +5,20 @@ const auth = require("../middleware/authMiddleware");
 const webpush = require("web-push");
 const PushSub = require("../models/pushsuscriptionmodel");
 const User = require("../models/userModel");
+const FcmDevice = require('../models/fcmDeviceModel');
+
+function firebaseMessaging() {
+  try {
+    const admin = require('firebase-admin');
+    if (!admin.apps.length) {
+      const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if (!raw) return null;
+      const credentials = JSON.parse(raw);
+      admin.initializeApp({ credential: admin.credential.cert(credentials) });
+    }
+    return admin.messaging();
+  } catch (err) { console.error('[FCM init]', err.message); return null; }
+}
 
 // ── Configurar VAPID (generá las keys con: npx web-push generate-vapid-keys) ──
 webpush.setVapidDetails(
@@ -52,6 +66,19 @@ router.delete("/unsubscribe", auth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: "Error eliminando suscripción" });
   }
+});
+
+router.post('/fcm/register', auth, async (req, res) => {
+  const token = String(req.body.token || '').trim();
+  if (token.length < 80) return res.status(400).json({ message: 'Token FCM inválido' });
+  await FcmDevice.findOneAndUpdate({ token }, { user: req.user.id, platform: 'android', active: true, lastSeenAt: new Date() }, { upsert: true, new: true });
+  await User.findByIdAndUpdate(req.user.id, { notificationsEnabled: true, pushEnabled: true });
+  res.json({ ok: true });
+});
+
+router.delete('/fcm/unregister', auth, async (req, res) => {
+  const token = String(req.body.token || '').trim();
+  await FcmDevice.deleteOne({ token, user: req.user.id }); res.json({ ok: true });
 });
 
 // ─── PUT /api/push/location ───────────────────────────────────────────────
@@ -150,6 +177,20 @@ async function notifyUsers(userIds, data) {
     try { await webpush.sendNotification(doc.subscription, payload); }
     catch (err) { if ([404, 410].includes(err.statusCode)) await PushSub.deleteOne({ _id: doc._id }); }
   }));
+  const messaging = firebaseMessaging();
+  if (messaging) {
+    const devices = await FcmDevice.find({ user: { $in: ids }, active: true }).lean();
+    await Promise.allSettled(devices.map(async device => {
+      try {
+        await messaging.send({ token: device.token, notification: { title: data.title || 'Rosario Market', body: data.body || '' }, data: {
+          title: data.title || 'Rosario Market', body: data.body || '', url: data.url || '/chatpage',
+          conversationId: String(data.conversationId || ''), badgeCount: String(data.badgeCount || 1), type: data.type || 'general',
+        }, android: { priority: 'high', notification: { channelId: 'rm_chat_messages', sound: 'default', notificationCount: Number(data.badgeCount || 1), tag: data.tag || 'rm-chat' } } });
+      } catch (err) {
+        if (['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(err.code)) await FcmDevice.deleteOne({ _id: device._id });
+      }
+    }));
+  }
 }
 
 module.exports = { router, notifyBusinessFollowers, notifyUsers };
