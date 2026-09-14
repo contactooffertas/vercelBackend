@@ -1,0 +1,15 @@
+const express = require('express');
+const multer = require('multer');
+const auth = require('../middleware/authMiddleware');
+const c = require('../authController/serviceProviderController');
+const router = express.Router();
+const upload = multer({ dest: '/tmp/rm-service-uploads', limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (_,f,cb) => cb(null, f.mimetype.startsWith('image/')) });
+router.get('/', c.list);
+router.get('/mine', auth, c.getMine);
+router.post('/mine', auth, upload.single('avatar'), c.upsertMine);
+router.post('/mine/verification', auth, c.requestVerification);
+router.get('/admin/verifications', auth, c.listPendingVerification);
+router.patch('/admin/verifications/:id', auth, c.resolveVerification);
+router.post('/:id/rate', auth, c.rate);
+router.get('/:id', c.detail);
+module.exports = router;
