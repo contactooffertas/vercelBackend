@@ -215,7 +215,7 @@ async function notifyBusinessFollowers({
 
 async function notifyUsers(userIds, data) {
   const ids = [...new Set((userIds || []).map(String).filter(Boolean))];
-  if (!ids.length) return;
+  if (!ids.length) return { webDelivered: 0, fcmDelivered: 0, totalDelivered: 0 };
   const subs = await PushSub.find({ user: { $in: ids } }).lean();
   const payload = JSON.stringify({
     title: data.title || 'Rosario Market', body: data.body || '', url: data.url || '/',
@@ -224,14 +224,19 @@ async function notifyUsers(userIds, data) {
     tag: data.tag || 'rm-message', renotify: true, vibrate: [180, 80, 180],
     badgeCount: Number(data.badgeCount || 1), type: data.type || 'general',
   });
-  await Promise.allSettled(subs.map(async doc => {
-    try { await webpush.sendNotification(doc.subscription, payload); }
-    catch (err) { if ([404, 410].includes(err.statusCode)) await PushSub.deleteOne({ _id: doc._id }); }
+  const webResults = await Promise.allSettled(subs.map(async doc => {
+    try { await webpush.sendNotification(doc.subscription, payload); return true; }
+    catch (err) {
+      if ([404, 410].includes(err.statusCode)) await PushSub.deleteOne({ _id: doc._id });
+      return false;
+    }
   }));
+  const webDelivered = webResults.filter(result => result.status === 'fulfilled' && result.value === true).length;
+  let fcmDelivered = 0;
   const messaging = firebaseMessaging();
   if (messaging) {
     const devices = await FcmDevice.find({ user: { $in: ids }, active: true }).lean();
-    await Promise.allSettled(devices.map(async device => {
+    const fcmResults = await Promise.allSettled(devices.map(async device => {
       try {
         // notification + data: Android itself displays the notification when
         // an OEM suspends the app, while data keeps deep-link and receipt info.
@@ -258,7 +263,7 @@ async function notifyUsers(userIds, data) {
             priority: 'high',
             ttl: 86400000,
             notification: {
-              channelId: 'rm_notifications_v397',
+              channelId: 'rm_notifications_v398',
               icon: 'ic_rm_notification',
               sound: 'default',
               visibility: 'public',
@@ -278,6 +283,7 @@ async function notifyUsers(userIds, data) {
             { $addToSet: { deliveredBy: device.user } },
           );
         }
+        return true;
       } catch (err) {
         console.error('[FCM send]', {
           code: err.code || 'unknown',
@@ -285,9 +291,12 @@ async function notifyUsers(userIds, data) {
           user: String(device.user),
         });
         if (['messaging/registration-token-not-registered','messaging/invalid-registration-token'].includes(err.code)) await FcmDevice.deleteOne({ _id: device._id });
+        return false;
       }
     }));
+    fcmDelivered = fcmResults.filter(result => result.status === 'fulfilled' && result.value === true).length;
   }
+  return { webDelivered, fcmDelivered, totalDelivered: webDelivered + fcmDelivered };
 }
 
 module.exports = { router, notifyBusinessFollowers, notifyUsers };
