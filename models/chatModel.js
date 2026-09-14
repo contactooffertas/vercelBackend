@@ -26,6 +26,10 @@ const conversationSchema = new mongoose.Schema(
         ref:  'User',
       },
     ],
+    kind: { type: String, enum: ['direct', 'group'], default: 'direct' },
+    name: { type: String, default: '', maxlength: 80 },
+    avatar: { type: String, default: '' },
+    admins: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     clearedAtBy: [{
       user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
       at:   { type: Date, required: true },
@@ -78,6 +82,11 @@ const messageSchema = new mongoose.Schema(
       senderName: { type: String, default: '' },
     },
     expiresAt: { type: Date, default: null },
+    reactions: [{
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      emoji: { type: String, enum: ['👍','❤️','😂','😮','😢','🙏','✅'], required: true },
+      createdAt: { type: Date, default: Date.now },
+    }],
     readBy: [
       { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     ],
