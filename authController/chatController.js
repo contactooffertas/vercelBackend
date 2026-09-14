@@ -243,6 +243,7 @@ exports.sendMessage = async (req, res) => {
       title: conv.kind === 'group' ? `${conv.name || 'Grupo'} · ${populated.sender?.name || 'Mensaje'}` : `Mensaje de ${populated.sender?.name || 'Rosario Market'}`,
       body: populated.text || 'Te enviaron una imagen', url: `/chatpage?conversationId=${conversationId}`,
       tag: `chat-${conversationId}`, type: conv.kind === 'group' ? 'group_message' : 'chat_message', icon: populated.sender?.avatar || populated.sender?.logo,
+      conversationId: String(conversationId),
     }).catch(err => console.error('[chat push]', err.message));
 
     // ── FIX CRÍTICO: emitir a sala personal de cada participante ──────────
@@ -279,7 +280,7 @@ exports.reactToMessage = async (req, res) => {
     msg.reactions.push({ user: me, emoji }); await msg.save();
     const actor = await require('../models/userModel').findById(me).select('name avatar').lean();
     const recipients = conv.participants.map(String).filter(id => id !== String(me));
-    await require('../routes/pushRoute').notifyUsers(recipients, { title: conv.kind === 'group' ? conv.name : 'Nueva reacción', body: `${actor?.name || 'Alguien'} reaccionó ${emoji}`, url: `/chatpage?conversationId=${conv._id}`, tag: `reaction-${msg._id}`, type: 'reaction', icon: actor?.avatar }).catch(()=>null);
+    await require('../routes/pushRoute').notifyUsers(recipients, { title: conv.kind === 'group' ? conv.name : 'Nueva reacción', body: `${actor?.name || 'Alguien'} reaccionó ${emoji}`, url: `/chatpage?conversationId=${conv._id}`, conversationId: String(conv._id), tag: `reaction-${msg._id}`, type: 'reaction', icon: actor?.avatar }).catch(()=>null);
     res.json({ reactions: msg.reactions });
   } catch (err) { res.status(500).json({ error: 'No se pudo guardar la reacción' }); }
 };
