@@ -18,6 +18,8 @@ const orderSchema = new mongoose.Schema({
   businessPhone: { type: String, default: "" },
   businessId:    { type: mongoose.Schema.Types.ObjectId, ref: "Business" },
   date: { type: Date, default: Date.now },
+  sellerSeenAt: { type: Date, default: null },
+  buyerStatusSeenAt: { type: Date, default: null },
   payment: {
     method: {
       type: String,
@@ -30,6 +32,8 @@ const orderSchema = new mongoose.Schema({
       default: "unpaid",
     },
     providerUrl: { type: String, default: "" },
+    amount: { type: Number, default: 0 },
+    description: { type: String, default: "" },
     externalReference: { type: String, default: "" },
     initiatedAt: { type: Date, default: null },
     returnedAt: { type: Date, default: null },

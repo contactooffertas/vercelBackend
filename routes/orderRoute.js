@@ -76,6 +76,8 @@ router.get("/my", auth, async (req, res) => {
       businessId:    o.businessId    || null,
       buyerRating:   o.buyerRating   || null,
       sellerRating:  o.sellerRating  || null,
+      payment:       o.payment       || null,
+      buyerStatusSeenAt: o.buyerStatusSeenAt || null,
       items: o.items.map(i => ({
         productId: i.product,
         name:      i.name,
@@ -138,6 +140,8 @@ router.get("/seller", auth, async (req, res) => {
       businessPhone: o.businessPhone || "",
       buyerRating:   o.buyerRating   || null,
       sellerRating:  o.sellerRating  || null,
+      payment:       o.payment       || null,
+      sellerSeenAt:  o.sellerSeenAt  || null,
       buyer: {
         _id:               o.user?._id,
         name:              o.user?.name  || "Comprador",
@@ -189,9 +193,16 @@ router.post("/:id/payment/start", auth, async (req, res) => {
       return res.status(400).json({ message: "Este negocio no tiene habilitado ese medio de pago." });
     }
 
+    const description = order.items
+      .map(item => `${item.quantity}x ${item.name}`)
+      .join(", ")
+      .slice(0, 240);
+
     order.payment.method = provider;
     order.payment.status = "pending";
     order.payment.providerUrl = config.paymentLink;
+    order.payment.amount = Number(order.total);
+    order.payment.description = description;
     order.payment.externalReference = order._id.toString();
     order.payment.initiatedAt = new Date();
     order.payment.returnedAt = null;
@@ -205,6 +216,8 @@ router.post("/:id/payment/start", auth, async (req, res) => {
       redirectUrl: config.paymentLink,
       returnUrl: `https://www.rosariomarket.com.ar/pago/retorno?orderId=${order._id}&provider=${provider}`,
       paymentStatus: order.payment.status,
+      amount: order.total,
+      description,
       message: "Pago iniciado. Al volver, quedará en verificación hasta confirmar la acreditación.",
     });
   } catch (err) {
@@ -353,6 +366,14 @@ router.patch("/:id/ship", auth, async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Orden no encontrada" });
 
+    const business = await Business.findOne({ owner: req.user.id }).select("_id").lean();
+    if (!business || order.businessId?.toString() !== business._id.toString()) {
+      return res.status(403).json({ message: "No estás autorizado para despachar este pedido." });
+    }
+    if (!["pending", "confirmed"].includes(order.status)) {
+      return res.status(400).json({ message: "Este pedido ya fue despachado o finalizado." });
+    }
+
     if (order.payment?.method && order.payment.method !== "direct" && order.payment.status !== "paid") {
       return res.status(400).json({
         message: "No podés despachar este pedido hasta que el pago esté confirmado.",
@@ -361,6 +382,7 @@ router.patch("/:id/ship", auth, async (req, res) => {
     }
 
     order.status = "shipped";
+    order.buyerStatusSeenAt = null;
     await order.save();
 
     const io = req.app.get("io");
@@ -370,6 +392,34 @@ router.patch("/:id/ship", auth, async (req, res) => {
   } catch (err) {
     console.error("Error /ship:", err);
     res.status(500).json({ message: "Error al despachar pedido" });
+  }
+});
+
+// El vendedor abrió su bandeja: los pedidos dejan de contarse como nuevos.
+router.patch("/seller/read", auth, async (req, res) => {
+  try {
+    const business = await Business.findOne({ owner: req.user.id }).select("_id name").lean();
+    if (!business) return res.json({ success: true, modifiedCount: 0 });
+    const result = await Order.updateMany(
+      { $or: [{ businessId: business._id }, { businessName: business.name }], sellerSeenAt: null },
+      { $set: { sellerSeenAt: new Date() } }
+    );
+    res.json({ success: true, modifiedCount: result.modifiedCount || 0 });
+  } catch (err) {
+    res.status(500).json({ message: "No se pudieron marcar los pedidos como leídos" });
+  }
+});
+
+// El comprador abrió Mis compras: limpia avisos de cambios de estado.
+router.patch("/my/read", auth, async (req, res) => {
+  try {
+    const result = await Order.updateMany(
+      { user: req.user.id, status: { $in: ["confirmed", "shipped", "delivered", "returned"] }, buyerStatusSeenAt: null },
+      { $set: { buyerStatusSeenAt: new Date() } }
+    );
+    res.json({ success: true, modifiedCount: result.modifiedCount || 0 });
+  } catch (err) {
+    res.status(500).json({ message: "No se pudieron marcar los avisos como leídos" });
   }
 });
 
