@@ -73,6 +73,7 @@ const messageSchema = new mongoose.Schema(
     },
     text:  { type: String, default: ''   },
     image: { type: String, default: null },
+    imagePublicId: { type: String, default: null },
     editedAt: { type: Date, default: null },
     replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
     replySnapshot: {
