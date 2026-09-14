@@ -17,6 +17,43 @@ async function _unreadCount(convId, userId) {
   });
 }
 
+function uploadChatImage(file) {
+  if (!file?.buffer) throw new Error('La imagen no llegó correctamente');
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'chat', resource_type: 'image' },
+      (error, result) => error ? reject(error) : resolve(result),
+    );
+    stream.end(file.buffer);
+  });
+}
+
+function legacyChatPublicId(imageUrl) {
+  if (!imageUrl) return null;
+  try {
+    const pathname = new URL(imageUrl).pathname;
+    const marker = '/upload/';
+    const uploadIndex = pathname.indexOf(marker);
+    if (uploadIndex < 0) return null;
+    const afterUpload = pathname.slice(uploadIndex + marker.length);
+    const withoutTransform = afterUpload.replace(/^(?:[^/]+\/)*v\d+\//, '');
+    const publicId = decodeURIComponent(withoutTransform).replace(/\.[a-z0-9]+$/i, '');
+    return publicId.startsWith('chat/') ? publicId : null;
+  } catch {
+    return null;
+  }
+}
+
+async function destroyChatImage(publicId) {
+  // Esta validación impide borrar productos, avatares o cualquier recurso que
+  // no haya sido creado expresamente dentro de la carpeta del chat.
+  if (!publicId || !String(publicId).startsWith('chat/')) return;
+  await cloudinary.uploader.destroy(String(publicId), {
+    resource_type: 'image',
+    invalidate: true,
+  });
+}
+
 async function _formatConv(conv, userId) {
   const other = conv.participants.find(
     p => p._id.toString() !== userId.toString()
@@ -188,18 +225,15 @@ exports.sendMessage = async (req, res) => {
 
     // ── Subir imagen a Cloudinary ─────────────────────────────────────────
     let imageUrl = null;
+    let imagePublicId = null;
     if (req.file) {
       try {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder:        'chat',
-          resource_type: 'image',
-        });
+        const result = await uploadChatImage(req.file);
         imageUrl = result.secure_url;
+        imagePublicId = result.public_id;
       } catch (uploadErr) {
         console.error('[chat] Cloudinary error:', uploadErr.message);
         return res.status(500).json({ error: 'Error al subir la imagen' });
-      } finally {
-        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       }
     }
 
@@ -221,6 +255,7 @@ exports.sendMessage = async (req, res) => {
       sender:       me,
       text:         text?.trim() || '',
       image:        imageUrl,
+      imagePublicId,
       replyTo:      replyTo || null,
       replySnapshot,
       expiresAt: conv.temporaryMode?.enabled
@@ -404,6 +439,16 @@ exports.deleteMessage = async (req, res) => {
     const me  = req.user?._id || req.user?.id;
     const msg = await Message.findOne({ _id: req.params.id, sender: me });
     if (!msg) return res.status(404).json({ error: 'Mensaje no encontrado' });
+
+    const chatImagePublicId = msg.imagePublicId || legacyChatPublicId(msg.image);
+    if (chatImagePublicId) {
+      try {
+        await destroyChatImage(chatImagePublicId);
+      } catch (cloudinaryError) {
+        console.error('[chat] No se pudo borrar imagen de Cloudinary:', cloudinaryError.message);
+        return res.status(502).json({ error: 'No se pudo eliminar la imagen adjunta; el mensaje se conservó para evitar archivos huérfanos' });
+      }
+    }
 
     await Message.deleteOne({ _id: msg._id });
     const newest = await Message.findOne({ conversation: msg.conversation }).sort({ createdAt: -1 });
