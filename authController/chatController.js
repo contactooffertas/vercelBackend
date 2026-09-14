@@ -31,6 +31,9 @@ async function _formatConv(conv, userId) {
     _id:          conv._id,
     participants: conv.participants,
     other,
+    kind: conv.kind || 'direct',
+    name: conv.kind === 'group' ? conv.name : (other?.name || ''),
+    avatar: conv.kind === 'group' ? conv.avatar : (other?.avatar || other?.logo || ''),
     lastMessage: last
       ? { text: last.text, image: last.image, createdAt: last.createdAt }
       : null,
@@ -85,6 +88,16 @@ exports.startConversation = async (req, res) => {
     console.error('[chat] startConversation ERROR:', err.message);
     res.status(500).json({ error: err.message || 'Error al iniciar conversación' });
   }
+};
+
+exports.createGroup = async (req, res) => {
+  try {
+    const me = req.user?._id || req.user?.id;
+    const ids = [...new Set([String(me), ...(req.body.participantIds || []).map(String)])];
+    if (!req.body.name?.trim() || ids.length < 3) return res.status(400).json({ error: 'El grupo necesita nombre y al menos 3 participantes' });
+    const conv = await Conversation.create({ kind: 'group', name: req.body.name.trim(), participants: ids, admins: [me] });
+    res.status(201).json(await Conversation.findById(conv._id).populate('participants', 'name avatar logo'));
+  } catch (err) { res.status(500).json({ error: 'No se pudo crear el grupo' }); }
 };
 
 // ─── GET /api/chat/conversations ──────────────────────────────────────────────
@@ -225,6 +238,13 @@ exports.sendMessage = async (req, res) => {
     const populated = await Message.findById(msg._id)
       .populate('sender', 'name avatar logo');
 
+    const recipients = conv.participants.map(String).filter(id => id !== String(me));
+    await require('../routes/pushRoute').notifyUsers(recipients, {
+      title: conv.kind === 'group' ? `${conv.name || 'Grupo'} · ${populated.sender?.name || 'Mensaje'}` : `Mensaje de ${populated.sender?.name || 'Rosario Market'}`,
+      body: populated.text || 'Te enviaron una imagen', url: `/chatpage?conversationId=${conversationId}`,
+      tag: `chat-${conversationId}`, type: conv.kind === 'group' ? 'group_message' : 'chat_message', icon: populated.sender?.avatar || populated.sender?.logo,
+    }).catch(err => console.error('[chat push]', err.message));
+
     // ── FIX CRÍTICO: emitir a sala personal de cada participante ──────────
     // pid es un ObjectId de Mongoose → hay que convertir a string con .toString()
     // sin esto, `user_${pid}` genera "user_[object Object]" y nadie recibe nada
@@ -245,6 +265,23 @@ exports.sendMessage = async (req, res) => {
     console.error('[chat] sendMessage:', err);
     res.status(500).json({ error: 'Error al enviar mensaje' });
   }
+};
+
+exports.reactToMessage = async (req, res) => {
+  try {
+    const me = req.user?._id || req.user?.id; const emoji = req.body.emoji;
+    if (!['👍','❤️','😂','😮','😢','🙏','✅'].includes(emoji)) return res.status(400).json({ error: 'Reacción inválida' });
+    const msg = await Message.findById(req.params.id);
+    if (!msg) return res.status(404).json({ error: 'Mensaje no encontrado' });
+    const conv = await Conversation.findOne({ _id: msg.conversation, participants: me });
+    if (!conv) return res.status(403).json({ error: 'Sin acceso' });
+    msg.reactions = (msg.reactions || []).filter(r => String(r.user) !== String(me));
+    msg.reactions.push({ user: me, emoji }); await msg.save();
+    const actor = await require('../models/userModel').findById(me).select('name avatar').lean();
+    const recipients = conv.participants.map(String).filter(id => id !== String(me));
+    await require('../routes/pushRoute').notifyUsers(recipients, { title: conv.kind === 'group' ? conv.name : 'Nueva reacción', body: `${actor?.name || 'Alguien'} reaccionó ${emoji}`, url: `/chatpage?conversationId=${conv._id}`, tag: `reaction-${msg._id}`, type: 'reaction', icon: actor?.avatar }).catch(()=>null);
+    res.json({ reactions: msg.reactions });
+  } catch (err) { res.status(500).json({ error: 'No se pudo guardar la reacción' }); }
 };
 
 // ─── PATCH /api/chat/messages/:id ────────────────────────────────────────────
