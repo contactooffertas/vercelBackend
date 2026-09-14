@@ -19,6 +19,8 @@ const {
   toggleUserBlock,
   setTemporaryMode,
   unblockConversation,    // nuevo — solo admin
+  createGroup,
+  reactToMessage,
 } = require('../authController/chatController');
 
 const uploadDir = path.join(__dirname, '../uploads/chat');
@@ -42,6 +44,7 @@ const upload = multer({
 });
 
 router.post('/start',                           auth, startConversation);
+router.post('/groups',                          auth, createGroup);
 router.get('/conversations',                    auth, getConversations);
 router.get('/conversations/:id/messages',       auth, getMessages);
 router.post('/conversations/:id/read',          auth, markAsRead);
@@ -53,5 +56,6 @@ router.patch('/conversations/:id/unblock',      auth, unblockConversation);  // 
 router.post('/messages', auth, upload.single('image'), sendMessage);
 router.patch('/messages/:id',                   auth, editMessage);
 router.delete('/messages/:id',                  auth, deleteMessage);
+router.post('/messages/:id/reactions',          auth, reactToMessage);
 
 module.exports = router;
