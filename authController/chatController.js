@@ -240,12 +240,28 @@ exports.sendMessage = async (req, res) => {
       .populate('sender', 'name avatar logo');
 
     const recipients = conv.participants.map(String).filter(id => id !== String(me));
-    await require('../routes/pushRoute').notifyUsers(recipients, {
-      title: conv.kind === 'group' ? `${conv.name || 'Grupo'} · ${populated.sender?.name || 'Mensaje'}` : `Mensaje de ${populated.sender?.name || 'Rosario Market'}`,
-      body: populated.text || 'Te enviaron una imagen', url: `/chatpage?conversationId=${conversationId}`,
-      tag: `chat-${conversationId}`, type: conv.kind === 'group' ? 'group_message' : 'chat_message', icon: populated.sender?.avatar || populated.sender?.logo,
-      conversationId: String(conversationId), messageId: String(populated._id),
-    }).catch(err => console.error('[chat push]', err.message));
+    const notifyUsers = require('../routes/pushRoute').notifyUsers;
+    // Each recipient gets their real total of unread chat messages. Android
+    // uses this value for the launcher badge (1, 2, 3...) just like a messenger.
+    await Promise.allSettled(recipients.map(async recipientId => {
+      const badgeCount = await Message.countDocuments({
+        sender: { $ne: recipientId },
+        readBy: { $nin: [recipientId] },
+        deletedBy: { $nin: [recipientId] },
+        $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+      });
+      return notifyUsers([recipientId], {
+        title: conv.kind === 'group' ? `${conv.name || 'Grupo'} · ${populated.sender?.name || 'Mensaje'}` : `Mensaje de ${populated.sender?.name || 'Rosario Market'}`,
+        body: populated.text || 'Te enviaron una imagen',
+        url: `/chatpage?conversationId=${conversationId}`,
+        tag: `chat-${conversationId}`,
+        type: conv.kind === 'group' ? 'group_message' : 'chat_message',
+        icon: populated.sender?.avatar || populated.sender?.logo,
+        conversationId: String(conversationId),
+        messageId: String(populated._id),
+        badgeCount: Math.max(1, badgeCount),
+      });
+    }));
 
     // ── FIX CRÍTICO: emitir a sala personal de cada participante ──────────
     // pid es un ObjectId de Mongoose → hay que convertir a string con .toString()
