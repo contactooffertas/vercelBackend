@@ -32,6 +32,7 @@ const orderSchema = new mongoose.Schema({
       default: "unpaid",
     },
     providerUrl: { type: String, default: "" },
+    providerPreferenceId: { type: String, default: "" },
     amount: { type: Number, default: 0 },
     description: { type: String, default: "" },
     externalReference: { type: String, default: "" },

@@ -671,6 +671,10 @@ function isSafeHttpsUrl(value) {
   }
 }
 
+function mercadoPagoConfigured() {
+  return Boolean(process.env.MP_CLIENT_ID && process.env.MP_CLIENT_SECRET && process.env.MP_REDIRECT_URI);
+}
+
 exports.getMyPaymentSettings = async (req, res) => {
   try {
     const business = await Business.findOne({ owner: req.user.id }).select("paymentMethods name").lean();
@@ -682,6 +686,11 @@ exports.getMyPaymentSettings = async (req, res) => {
         bna: { enabled: false, paymentLink: "" },
         santafe: { enabled: false, paymentLink: "" },
         mercadopago: { enabled: false, paymentLink: "" },
+      },
+      mercadoPago: {
+        available: mercadoPagoConfigured(),
+        connected: Boolean(business.mercadoPagoConnection?.connectedAt),
+        connectedAt: business.mercadoPagoConnection?.connectedAt || null,
       },
     });
   } catch (error) {
@@ -732,7 +741,7 @@ exports.updateMyPaymentSettings = async (req, res) => {
 
 exports.getPublicPaymentMethods = async (req, res) => {
   try {
-    const business = await Business.findById(req.params.id).select("paymentMethods name blocked").lean();
+    const business = await Business.findById(req.params.id).select("paymentMethods mercadoPagoConnection.connectedAt name blocked").lean();
     if (!business || business.blocked) return res.status(404).json({ message: "Negocio no encontrado" });
 
     const methods = business.paymentMethods || {};
@@ -749,12 +758,81 @@ exports.getPublicPaymentMethods = async (req, res) => {
           paymentLink: methods.santafe?.enabled ? methods.santafe?.paymentLink || "" : "",
         },
         mercadopago: {
-          enabled: Boolean(methods.mercadopago?.enabled && methods.mercadopago?.paymentLink),
+          enabled: Boolean(methods.mercadopago?.enabled && (business.mercadoPagoConnection?.connectedAt || methods.mercadopago?.paymentLink)),
+          automatic: Boolean(methods.mercadopago?.enabled && business.mercadoPagoConnection?.connectedAt),
           paymentLink: methods.mercadopago?.enabled ? methods.mercadopago?.paymentLink || "" : "",
         },
       },
     });
   } catch (error) {
     res.status(500).json({ message: "Error obteniendo métodos de cobro" });
+  }
+};
+
+exports.startMercadoPagoConnection = async (req, res) => {
+  try {
+    if (!mercadoPagoConfigured()) {
+      return res.status(503).json({ message: "Rosario Market todavía no activó las credenciales de Mercado Pago." });
+    }
+    const Business = require("../models/businessModel");
+    const jwt = require("jsonwebtoken");
+    const business = await Business.findOne({ owner: req.user.id }).select("_id").lean();
+    if (!business) return res.status(404).json({ message: "Primero creá tu negocio." });
+    const state = jwt.sign({ businessId: business._id.toString(), purpose: "mp-connect" }, process.env.JWT_SECRET, { expiresIn: "10m" });
+    const params = new URLSearchParams({
+      client_id: process.env.MP_CLIENT_ID,
+      response_type: "code",
+      platform_id: "mp",
+      state,
+      redirect_uri: process.env.MP_REDIRECT_URI,
+    });
+    res.json({ authorizationUrl: `https://auth.mercadopago.com.ar/authorization?${params.toString()}` });
+  } catch (error) {
+    res.status(500).json({ message: "No se pudo iniciar la conexión con Mercado Pago." });
+  }
+};
+
+exports.finishMercadoPagoConnection = async (req, res) => {
+  const frontend = process.env.FRONTEND_URL || "https://www.rosariomarket.com.ar";
+  try {
+    const jwt = require("jsonwebtoken");
+    const Business = require("../models/businessModel");
+    const { encrypt, exchangeToken } = require("../utils/mercadoPagoOAuth");
+    const payload = jwt.verify(String(req.query.state || ""), process.env.JWT_SECRET);
+    if (payload.purpose !== "mp-connect") throw new Error("Estado inválido");
+    const token = await exchangeToken({
+      client_id: process.env.MP_CLIENT_ID,
+      client_secret: process.env.MP_CLIENT_SECRET,
+      code: String(req.query.code || ""),
+      grant_type: "authorization_code",
+      redirect_uri: process.env.MP_REDIRECT_URI,
+    });
+    await Business.findByIdAndUpdate(payload.businessId, {
+      $set: {
+        "mercadoPagoConnection.userId": String(token.user_id || ""),
+        "mercadoPagoConnection.accessToken": encrypt(token.access_token),
+        "mercadoPagoConnection.refreshToken": encrypt(token.refresh_token || ""),
+        "mercadoPagoConnection.expiresAt": new Date(Date.now() + Number(token.expires_in || 15552000) * 1000),
+        "mercadoPagoConnection.connectedAt": new Date(),
+        "paymentMethods.mercadopago.enabled": true,
+      },
+    });
+    res.redirect(`${frontend}/ordenes?mp=connected`);
+  } catch (error) {
+    res.redirect(`${frontend}/ordenes?mp=error`);
+  }
+};
+
+exports.disconnectMercadoPago = async (req, res) => {
+  try {
+    const Business = require("../models/businessModel");
+    await Business.findOneAndUpdate({ owner: req.user.id }, {
+      $set: {
+        mercadoPagoConnection: { userId: "", accessToken: "", refreshToken: "", expiresAt: null, connectedAt: null },
+      },
+    });
+    res.json({ success: true, message: "Mercado Pago desconectado" });
+  } catch (error) {
+    res.status(500).json({ message: "No se pudo desconectar Mercado Pago" });
   }
 };

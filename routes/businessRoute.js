@@ -18,6 +18,9 @@ const {
   getMyPaymentSettings,
   updateMyPaymentSettings,
   getPublicPaymentMethods,
+  startMercadoPagoConnection,
+  finishMercadoPagoConnection,
+  disconnectMercadoPago,
 } = require("../authController/businessController");
 const verifyToken = require("../middleware/authMiddleware");
 
@@ -30,6 +33,9 @@ router.get("/my-business", verifyToken, getMyBusiness);
 // Métodos de cobro
 router.get("/payment-settings", verifyToken, getMyPaymentSettings);
 router.put("/payment-settings", verifyToken, updateMyPaymentSettings);
+router.get("/mercadopago/connect", verifyToken, startMercadoPagoConnection);
+router.get("/mercadopago/callback", finishMercadoPagoConnection);
+router.delete("/mercadopago/connect", verifyToken, disconnectMercadoPago);
 router.get("/:id/payment-methods", getPublicPaymentMethods);
 
 // Apelaciones

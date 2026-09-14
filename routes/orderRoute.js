@@ -4,6 +4,7 @@ const auth     = require("../middleware/authMiddleware");
 const Order    = require("../models/orderModel");
 const Business = require("../models/businessModel");
 const User     = require("../models/userModel");
+const { validAccessToken } = require("../utils/mercadoPagoOAuth");
 
 function Product() {
   return require("mongoose").model("Product");
@@ -185,11 +186,13 @@ router.post("/:id/payment/start", auth, async (req, res) => {
       return res.status(403).json({ message: "No autorizado" });
     }
 
-    const business = await Business.findById(order.businessId).select("paymentMethods name").lean();
+    const business = await Business.findById(order.businessId)
+      .select("paymentMethods name mercadoPagoConnection.connectedAt +mercadoPagoConnection.accessToken +mercadoPagoConnection.refreshToken mercadoPagoConnection.expiresAt");
     if (!business) return res.status(404).json({ message: "Negocio no encontrado" });
 
     const config = business.paymentMethods?.[provider];
-    if (!config?.enabled || !config?.paymentLink) {
+    const automaticMercadoPago = provider === "mercadopago" && Boolean(business.mercadoPagoConnection?.connectedAt);
+    if (!config?.enabled || (!automaticMercadoPago && !config?.paymentLink)) {
       return res.status(400).json({ message: "Este negocio no tiene habilitado ese medio de pago." });
     }
 
@@ -198,9 +201,46 @@ router.post("/:id/payment/start", auth, async (req, res) => {
       .join(", ")
       .slice(0, 240);
 
+    let redirectUrl = config.paymentLink;
+    let preferenceId = "";
+    if (automaticMercadoPago) {
+      const accessToken = await validAccessToken(business);
+      const returnUrl = `https://www.rosariomarket.com.ar/pago/retorno?orderId=${order._id}&provider=mercadopago`;
+      const preferenceResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "X-Idempotency-Key": `rosario-market-${order._id}`,
+        },
+        body: JSON.stringify({
+          items: order.items.map(item => ({
+            id: item.product?.toString() || order._id.toString(),
+            title: item.name,
+            description: `${item.quantity}x ${item.name}`,
+            quantity: Number(item.quantity),
+            currency_id: "ARS",
+            unit_price: Number(item.price),
+          })),
+          external_reference: order._id.toString(),
+          statement_descriptor: "ROSARIO MARKET",
+          back_urls: { success: returnUrl, pending: returnUrl, failure: returnUrl },
+          auto_return: "approved",
+        }),
+      });
+      const preference = await preferenceResponse.json();
+      if (!preferenceResponse.ok || !preference.init_point) {
+        console.error("Mercado Pago preference error:", preference);
+        return res.status(502).json({ message: "Mercado Pago no pudo preparar este cobro. El vendedor puede usar su link manual." });
+      }
+      redirectUrl = preference.init_point;
+      preferenceId = preference.id || "";
+    }
+
     order.payment.method = provider;
     order.payment.status = "pending";
-    order.payment.providerUrl = config.paymentLink;
+    order.payment.providerUrl = redirectUrl;
+    order.payment.providerPreferenceId = preferenceId;
     order.payment.amount = Number(order.total);
     order.payment.description = description;
     order.payment.externalReference = order._id.toString();
@@ -213,7 +253,7 @@ router.post("/:id/payment/start", auth, async (req, res) => {
     res.json({
       orderId: order._id,
       provider,
-      redirectUrl: config.paymentLink,
+      redirectUrl,
       returnUrl: `https://www.rosariomarket.com.ar/pago/retorno?orderId=${order._id}&provider=${provider}`,
       paymentStatus: order.payment.status,
       amount: order.total,

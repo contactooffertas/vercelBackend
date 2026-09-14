@@ -29,6 +29,13 @@ const businessSchema = new mongoose.Schema(
         paymentLink: { type: String, default: "" },
       },
     },
+    mercadoPagoConnection: {
+      userId: { type: String, default: "" },
+      accessToken: { type: String, default: "", select: false },
+      refreshToken: { type: String, default: "", select: false },
+      expiresAt: { type: Date, default: null },
+      connectedAt: { type: Date, default: null },
+    },
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     rating: { type: Number, default: 0 },
     totalRatings: { type: Number, default: 0 },
