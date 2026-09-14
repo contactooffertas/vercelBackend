@@ -65,9 +65,6 @@ async function notifyNearbyBusinessesForUser({ userId, lat, lng }) {
 
   if (!user?.notificationsEnabled) return { delivered: 0 };
 
-  const subs = await PushSub.find({ user: userId }).lean();
-  if (!subs.length) return { delivered: 0 };
-
   const businesses = await Business.find({
     blocked: { $ne: true },
     suspended: { $ne: true },
@@ -114,7 +111,10 @@ async function notifyNearbyBusinessesForUser({ userId, lat, lng }) {
       .filter(Boolean)
       .join(" · ");
 
-    const delivered = await sendPayloadToSubscriptions(subs, {
+    // notifyUsers cubre tanto Web Push como FCM nativo. Antes este flujo solo
+    // miraba PushSub, por lo que una APK registrada únicamente en FCM quedaba
+    // excluida aunque tuviera ubicación y notificaciones habilitadas.
+    const delivery = await require("../routes/pushRoute").notifyUsers([userId], {
       title: `📍 ${business.name} está cerca tuyo`,
       body: body || "Tenés un negocio de Rosario a pocos pasos.",
       url: `/negocio/${business._id}`,
@@ -124,12 +124,9 @@ async function notifyNearbyBusinessesForUser({ userId, lat, lng }) {
       renotify: false,
       requireInteraction: false,
       vibrate: [120, 60, 120],
-      meta: {
-        type: "nearby_business",
-        businessId: String(business._id),
-        distanceMeters: meters,
-      },
+      type: "nearby_business",
     });
+    const delivered = delivery?.totalDelivered || 0;
 
     if (delivered > 0) {
       await NearbyPushLog.findOneAndUpdate(
