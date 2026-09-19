@@ -7,7 +7,7 @@ const DEFAULT_CATEGORIES = [
   ["Hogar","hogar","Home"],["Deportes","deportes","Dumbbell"],
   ["Alimentos","alimentos","ShoppingBag"],["Salud y Belleza","salud-belleza","Heart"],
   ["Automotriz","automotriz","Car"],["Juguetes","juguetes","Gift"],
-  ["Libros","libros","BookOpen"],["Mascotas","mascotas","PawPrint"],
+  ["Libros","libros","BookOpen"],["Mascotas","mascotas","PawPrint"],\n  ["Lavandería","lavanderia","WashingMachine"],
 ];
 
 const CATEGORY_ROOTS = {
@@ -31,7 +31,7 @@ const CATEGORY_ROOTS = {
   "automotriz": ["automotriz","automotor","auto","moto","cubierta","neumatico","bateria","aceite","filtro","repuesto","amortiguador","freno","llanta","casco","lavado","detailing","accesorios auto","stereo","alarma","motor","taller"],
   "juguetes": ["juguete","muñeca","muñeco","peluche","rompecabezas","puzzle","bloques","lego","autito","camion","juego","mesa","cartas","didactico","bebe","infantil","patin","monopatin","disfraz","regalo"],
   "libros": ["libro","novela","cuento","manual","escolar","diccionario","enciclopedia","comic","manga","revista","literatura","historia","ciencia","infantil","juvenil","poesia","biografia","estudio","lectura","libreria"],
-  "mascotas": [
+  "lavanderia": ["lavanderia","lavadero de ropa","lavado de ropa","lavar ropa","ropa limpia","tintoreria","tintorería","limpieza de ropa","lavado y secado","secado de ropa","planchado","planchado de ropa","lavado de frazadas","lavado de acolchados","lavado de mantas","lavado de cortinas","lavado de zapatillas","lavanderia autoservicio","lavandería autoservicio","lavanderia cerca","lavandería cerca","lavanderia delivery","retiro de ropa","entrega de ropa"],\n  "mascotas": [
     "mascota","mascotas","perro","perros","gato","gatos","animales","comida para perros","comida para gatos",
     "comida para animales","alimento para perros","alimento para gatos","alimento para animales","alimentos para mascotas","alimento para mascotas","alimento perro","alimento gato",
     "ropa de mascotas","ropa para mascotas","correa","collar","pretal","cucha","cama mascota","juguete mascota",
@@ -40,7 +40,7 @@ const CATEGORY_ROOTS = {
   ],
 };
 
-const BUSINESS_INTENT_SUGGESTIONS = {
+const BUSINESS_INTENT_SUGGESTIONS = {\n  lavanderia: { category: "lavanderia", phrases: ["lavanderia cerca","lavanderia en la zona","donde lavar ropa","lavado y secado de ropa","tintoreria cerca","lavanderia con retiro y entrega"] },\n  tintoreria: { category: "lavanderia", phrases: ["tintoreria cerca","lavanderia cerca","limpieza de ropa","lavado de prendas","lavado y planchado"] },\n  planchado: { category: "lavanderia", phrases: ["planchado de ropa","lavanderia con planchado","lavanderia cerca","lavado y planchado"] },
   panaderia: { category: "alimentos", phrases: ["panaderia","panaderia cerca","panaderia en la zona","panaderia cerca de mi","panaderia abierta","panaderia con delivery"] },
   asado: { category: "alimentos", phrases: ["carniceria cerca","carniceria en la zona","donde comprar asado","carne para asado","supermercado con carniceria"] },
   chorizo: { category: "alimentos", phrases: ["carniceria cerca","donde comprar chorizos","chorizos para asado","carniceria en la zona","supermercado con carniceria"] },
