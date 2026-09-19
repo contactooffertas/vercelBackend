@@ -286,7 +286,7 @@ router.post('/login', require('../authController/login'));
 // ── FORGOT PASSWORD ───────────────────────────────────────────────────────────
 router.post('/forgot-password', async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body?.email || '').trim().toLowerCase();
     if (!email) return res.status(400).json({ message: 'El email es requerido' });
 
     const user = await User.findOne({ email });
