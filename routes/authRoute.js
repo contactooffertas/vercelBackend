@@ -1,4 +1,5 @@
 // routes/authRoute.js
+// Startup guard: authMiddleware and userController must remain explicitly imported.
 const express    = require('express');
 const router     = express.Router();
 const bcrypt     = require('bcryptjs');
