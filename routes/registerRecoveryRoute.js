@@ -84,12 +84,6 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
     try {
       await sendEmail(
         email,
@@ -104,8 +98,8 @@ router.post('/register', async (req, res) => {
 
     return res.status(user.createdAt?.getTime() === user.updatedAt?.getTime() ? 201 : 200).json({
       message: 'Usuario registrado. Verificá tu email.',
-      token,
-      user,
+      requiresVerification: true,
+      email: user.email,
     });
   } catch (err) {
     console.error('[register] Error:', err);
