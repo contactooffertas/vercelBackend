@@ -1,12 +1,12 @@
 // utils/sendMail.js
 const nodemailer = require('nodemailer');
 
-const smtpUser = String(process.env.SMTP_USER || '').trim();
-const smtpPass = String(process.env.SMTP_PASS || '').replace(/\s+/g, '').trim();
+const smtpUser = String(process.env.EMAIL_USER || '').trim();
+const smtpPass = String(process.env.EMAIL_PASS || '').replace(/\s+/g, '').trim();
 
 const sendEmail = async (to, subject, text, html) => {
   if (!smtpUser || !smtpPass) {
-    throw new Error('SMTP no configurado: faltan SMTP_USER o SMTP_PASS');
+    throw new Error('SMTP no configurado: faltan EMAIL_USER o EMAIL_PASS');
   }
 
   const transporter = nodemailer.createTransport({
