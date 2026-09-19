@@ -35,7 +35,7 @@ function verificationEmailHTML(code, name) {
             <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">Si no creaste esta cuenta, podés ignorar este email.</p>
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
+            <p style="margin:0;color:#9ca3af;font-size:12px;">${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
           </td></tr>
         </table>
       </td></tr>
@@ -56,7 +56,7 @@ function resendEmailHTML(code, name) {
             <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Tu marketplace de confianza</p>
           </td></tr>
           <tr><td style="padding:40px 40px 32px;">
-            <h2 style="margin:0 0 12px;color:#111827;font-size:22px;font-weight:700;">Nuevo código solicitado 🔄</h2>
+            <h2 style="margin:0 0 12px;color:#111827;font-size:22px;font-weight:700;">Nuevo código solicitado</h2>
             <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
               Hola <strong>${name}</strong>, aquí está tu nuevo código:
             </p>
@@ -68,7 +68,7 @@ function resendEmailHTML(code, name) {
             <p style="margin:0;color:#6b7280;font-size:14px;">Si no solicitaste este código, ignorá este mensaje.</p>
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
+            <p style="margin:0;color:#9ca3af;font-size:12px;">${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
           </td></tr>
         </table>
       </td></tr>
@@ -105,7 +105,7 @@ function forgotPasswordHTML(code, name) {
             </div>
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
+            <p style="margin:0;color:#9ca3af;font-size:12px;">${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
           </td></tr>
         </table>
       </td></tr>
@@ -135,7 +135,7 @@ function passwordChangedHTML(name) {
             </div>
           </td></tr>
           <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-            <p style="margin:0;color:#9ca3af;font-size:12px;">© ${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
+            <p style="margin:0;color:#9ca3af;font-size:12px;">${new Date().getFullYear()} Rosario Market. Todos los derechos reservados.</p>
           </td></tr>
         </table>
       </td></tr>
@@ -175,12 +175,12 @@ router.post('/register', async (req, res) => {
     try {
       await sendEmail(
         email,
-        '🔐 Código de verificación — Rosario Market',
+        'Código de verificación - Rosario Market',
         `Tu código de verificación es: ${code}. Válido por 10 minutos.`,
         verificationEmailHTML(code, name)
       );
     } catch (emailErr) {
-      console.error('❌ Error enviando email de verificación:', emailErr.message);
+      console.error('Error enviando email de verificación:', emailErr.message);
     }
 
     res.status(201).json({
@@ -190,7 +190,7 @@ router.post('/register', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ ERROR en register:', err.message);
+    console.error('ERROR en register:', err.message);
     res.status(500).json({ message: 'Error servidor' });
   }
 });
@@ -217,7 +217,7 @@ router.post('/verify', async (req, res) => {
     res.json({ message: 'Cuenta verificada correctamente' });
 
   } catch (err) {
-    console.error('❌ ERROR en verify:', err.message);
+    console.error('ERROR en verify:', err.message);
     res.status(500).json({ message: 'Error servidor' });
   }
 });
@@ -241,19 +241,19 @@ router.post('/resend', async (req, res) => {
     try {
       await sendEmail(
         email,
-        '🔄 Nuevo código de verificación — Rosario Market',
+        'Nuevo código de verificación - Rosario Market',
         `Tu nuevo código es: ${newCode}. Válido por 10 minutos.`,
         resendEmailHTML(newCode, user.name)
       );
     } catch (emailErr) {
-      console.error('❌ Error reenviando código:', emailErr.message);
+      console.error('Error reenviando código:', emailErr.message);
       return res.status(503).json({ message: 'No pudimos enviar el código de verificación. Intentá nuevamente.' });
     }
 
     res.json({ message: 'Nuevo código enviado correctamente' });
 
   } catch (err) {
-    console.error('❌ ERROR en resend:', err.message);
+    console.error('ERROR en resend:', err.message);
     res.status(500).json({ message: 'Error servidor' });
   }
 });
@@ -280,19 +280,19 @@ router.post('/forgot-password', async (req, res) => {
     try {
       await sendEmail(
         email,
-        '🔑 Recuperar contraseña — Rosario Market',
+        'Recuperar contraseña - Rosario Market',
         `Tu código para restablecer la contraseña es: ${code}. Válido por 15 minutos.`,
         forgotPasswordHTML(code, user.name)
       );
     } catch (emailErr) {
-      console.error('❌ Error enviando email de recuperación:', emailErr.message);
+      console.error('Error enviando email de recuperación:', emailErr.message);
       return res.status(503).json({ message: 'No pudimos enviar el código de recuperación. Intentá nuevamente.' });
     }
 
     res.json({ message: 'Si el email existe, recibirás un código en breve.' });
 
   } catch (err) {
-    console.error('❌ ERROR en forgotPassword:', err.message);
+    console.error('ERROR en forgotPassword:', err.message);
     res.status(500).json({ message: 'Error del servidor' });
   }
 });
@@ -326,18 +326,18 @@ router.post('/reset-password', async (req, res) => {
     try {
       await sendEmail(
         email,
-        '✅ Contraseña actualizada — Rosario Market',
+        'Contraseña actualizada - Rosario Market',
         'Tu contraseña fue actualizada correctamente.',
         passwordChangedHTML(user.name)
       );
     } catch (emailErr) {
-      console.error('❌ Error enviando confirmación:', emailErr.message);
+      console.error('Error enviando confirmación:', emailErr.message);
     }
 
     res.json({ message: 'Contraseña actualizada correctamente' });
 
   } catch (err) {
-    console.error('❌ ERROR en resetPassword:', err.message);
+    console.error('ERROR en resetPassword:', err.message);
     res.status(500).json({ message: 'Error del servidor' });
   }
 });
