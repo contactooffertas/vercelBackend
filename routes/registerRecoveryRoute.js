@@ -99,6 +99,7 @@ router.post('/register', async (req, res) => {
       );
     } catch (emailErr) {
       console.error('[register] Error enviando email de verificación:', emailErr.message);
+      return res.status(503).json({ message: 'La cuenta se guardó, pero no pudimos enviar el código. Usá “Reenviar código” en unos instantes.' });
     }
 
     return res.status(user.createdAt?.getTime() === user.updatedAt?.getTime() ? 201 : 200).json({
