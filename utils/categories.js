@@ -12,6 +12,7 @@ const MARKET_CATEGORIES = [
   'juguetes',
   'libros',
   'mascotas',
+  'lavanderia',
 ];
 
 const LEGACY_CATEGORY_ALIASES = {
@@ -41,6 +42,9 @@ function normalizeCategory(value) {
     juguetes: 'juguetes',
     libros: 'libros',
     mascotas: 'mascotas',
+    lavanderia: 'lavanderia',
+    'lavandería': 'lavanderia',
+    tintoreria: 'lavanderia',
     supermercado: 'supermercado',
   };
 
@@ -71,6 +75,7 @@ function categoryQueryValues(value) {
     juguetes: ['Juguetes', 'juguetes'],
     libros: ['Libros', 'libros'],
     mascotas: ['Mascotas', 'mascotas'],
+    lavanderia: ['Lavandería', 'Lavanderia', 'lavandería', 'lavanderia', 'Tintorería', 'Tintoreria', 'tintoreria'],
   };
 
   (labelAliases[normalized] || []).forEach((item) => values.add(item));
