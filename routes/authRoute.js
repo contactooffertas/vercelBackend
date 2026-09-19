@@ -247,6 +247,7 @@ router.post('/resend', async (req, res) => {
       );
     } catch (emailErr) {
       console.error('❌ Error reenviando código:', emailErr.message);
+      return res.status(503).json({ message: 'No pudimos enviar el código de verificación. Intentá nuevamente.' });
     }
 
     res.json({ message: 'Nuevo código enviado correctamente' });
@@ -285,6 +286,7 @@ router.post('/forgot-password', async (req, res) => {
       );
     } catch (emailErr) {
       console.error('❌ Error enviando email de recuperación:', emailErr.message);
+      return res.status(503).json({ message: 'No pudimos enviar el código de recuperación. Intentá nuevamente.' });
     }
 
     res.json({ message: 'Si el email existe, recibirás un código en breve.' });
