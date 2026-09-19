@@ -24,6 +24,7 @@ const sendEmail = async (to, subject, text, html) => {
 
   const info = await transporter.sendMail({
     from: `"Rosario Market" <${smtpUser}>`,
+    replyTo: smtpUser,
     to,
     subject,
     text,
