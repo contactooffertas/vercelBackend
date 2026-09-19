@@ -226,13 +226,13 @@ router.post('/verify', async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user)           return res.status(400).json({ message: 'Usuario no encontrado' });
-    if (user.isVerified) return res.status(400).json({ message: 'Usuario ya verificado' });
+    if (user.verified) return res.status(400).json({ message: 'Usuario ya verificado' });
 
     if (user.verificationCode !== code || user.verificationCodeExpires < Date.now()) {
       return res.status(400).json({ message: 'Código inválido o expirado' });
     }
 
-    user.isVerified              = true;
+    user.verified              = true;
     user.verificationCode        = null;
     user.verificationCodeExpires = null;
     await user.save();
@@ -252,7 +252,7 @@ router.post('/resend', async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user)           return res.status(400).json({ message: 'Usuario no encontrado' });
-    if (user.isVerified) return res.status(400).json({ message: 'Usuario ya verificado' });
+    if (user.verified) return res.status(400).json({ message: 'Usuario ya verificado' });
 
     const newCode    = Math.floor(100000 + Math.random() * 900000).toString();
     const newExpires = Date.now() + 10 * 60 * 1000;
