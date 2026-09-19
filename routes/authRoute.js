@@ -4,34 +4,10 @@ const express    = require('express');
 const router     = express.Router();
 const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const sendEmail = require('../utils/sendMail');
 const User       = require('../models/userModel');
 const authMiddleware = require('../middleware/authMiddleware');
 const userController = require('../authController/userController');
-
-// ── Transporter ───────────────────────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
-  host:   'smtp.gmail.com',
-  port:   465,
-  secure: true,
-  auth: {
-   user: "contacto.offertas@gmail.com",
-    pass: "mure nbuc fqbh iwry",
-  },
-  connectionTimeout: 10000,
-  greetingTimeout:   10000,
-  socketTimeout:     10000,
-});
-
-const sendEmail = async (to, subject, text, html) => {
-  await transporter.sendMail({
-    from:    `"Rosario Market" <contacto.offertas@gmail.com>`,
-    to,
-    subject,
-    text,
-    html: html || text,
-  });
-};
 
 // ── HTML templates ────────────────────────────────────────────────────────────
 function verificationEmailHTML(code, name) {
@@ -222,7 +198,8 @@ router.post('/register', async (req, res) => {
 // ── VERIFY ────────────────────────────────────────────────────────────────────
 router.post('/verify', async (req, res) => {
   try {
-    const { email, code } = req.body;
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const code = String(req.body?.code || '').trim();
 
     const user = await User.findOne({ email });
     if (!user)           return res.status(400).json({ message: 'Usuario no encontrado' });
