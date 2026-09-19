@@ -9,7 +9,7 @@ const router = express.Router();
 function verificationEmailHTML(code, name) {
   return `<!DOCTYPE html>
   <html lang="es">
-  <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Verificá tu cuenta</title></head>
+  <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Verifica tu cuenta</title></head>
   <body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0;">
       <tr><td align="center">
@@ -87,7 +87,7 @@ router.post('/register', async (req, res) => {
     try {
       await sendEmail(
         email,
-        'Código de verificación — Rosario Market',
+        'Código de verificación - Rosario Market',
         `Tu código de verificación es: ${code}. Válido por 10 minutos.`,
         verificationEmailHTML(code, name)
       );
