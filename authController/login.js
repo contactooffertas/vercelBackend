@@ -7,7 +7,8 @@ module.exports = async (req, res) => {
   try {
     await connectDB();
 
-    const { email, password } = req.body || {};
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "");
     if (!email || !password) {
       return res.status(400).json({ message: "Email y contraseña son requeridos" });
     }
@@ -17,6 +18,14 @@ module.exports = async (req, res) => {
 
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ message: "Credenciales inválidas" });
+
+    if (!user.verified) {
+      return res.status(403).json({
+        message: "Primero verificá tu correo electrónico.",
+        requiresVerification: true,
+        email: user.email,
+      });
+    }
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
