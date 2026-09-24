@@ -46,7 +46,7 @@ router.post("/:id/follow", verifyToken, followBusiness);
 router.post("/:id/unfollow", verifyToken, unfollowBusiness);
 router.post("/:id/favorite", verifyToken, favoriteBusiness);
 router.post("/:id/unfavorite", verifyToken, unfavoriteBusiness);
-router.post("/:id/rate", verifyToken, rateBusiness);
+// La reputación se registra únicamente desde una compra entregada.
 router.get("/:id/social", verifyToken, getBusinessSocialStatus);
 
 // Público al final

@@ -20,7 +20,7 @@ router.delete('/location', auth, userController.removeLocation);
 router.get('/following-businesses', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
-      .populate('followingBusinesses', 'name logo city rating totalRatings verified')
+      .populate('followingBusinesses', 'name logo city verified')
       .lean();
     res.json(user?.followingBusinesses || []);
   } catch (err) {

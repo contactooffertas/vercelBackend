@@ -3,8 +3,8 @@ const router   = express.Router();
 const auth     = require("../middleware/authMiddleware");
 const Order    = require("../models/orderModel");
 const Business = require("../models/businessModel");
-const User     = require("../models/userModel");
 const { validAccessToken } = require("../utils/mercadoPagoOAuth");
+const { needsDeliveryReview, mayRequestDeliveryReview } = require("../utils/orderLifecycle");
 
 function Product() {
   return require("mongoose").model("Product");
@@ -77,6 +77,10 @@ router.get("/my", auth, async (req, res) => {
       businessId:    o.businessId    || null,
       buyerRating:   o.buyerRating   || null,
       sellerRating:  o.sellerRating  || null,
+      shippedAt: o.shippedAt || null,
+      needsDeliveryReview: needsDeliveryReview(o) || Boolean(o.deliveryReviewRequestedAt),
+      deliveryReviewRequestedAt: o.deliveryReviewRequestedAt || null,
+      deliveryReviewReason: o.deliveryReviewReason || "",
       payment:       o.payment       || null,
       buyerStatusSeenAt: o.buyerStatusSeenAt || null,
       items: o.items.map(i => ({
@@ -109,7 +113,7 @@ router.get("/seller", auth, async (req, res) => {
     if (business) {
       orders = await Order.find({
         $or: [
-          { businessName: business.name },
+          { businessId: null, businessName: business.name },
           { businessId: business._id },
           { "items.product": { $in: myProductIds } },
         ],
@@ -141,6 +145,10 @@ router.get("/seller", auth, async (req, res) => {
       businessPhone: o.businessPhone || "",
       buyerRating:   o.buyerRating   || null,
       sellerRating:  o.sellerRating  || null,
+      shippedAt: o.shippedAt || null,
+      needsDeliveryReview: needsDeliveryReview(o) || Boolean(o.deliveryReviewRequestedAt),
+      deliveryReviewRequestedAt: o.deliveryReviewRequestedAt || null,
+      deliveryReviewReason: o.deliveryReviewReason || "",
       payment:       o.payment       || null,
       sellerSeenAt:  o.sellerSeenAt  || null,
       buyer: {
@@ -426,6 +434,7 @@ router.patch("/:id/ship", auth, async (req, res) => {
     }
 
     order.status = "shipped";
+    order.shippedAt = new Date();
     order.buyerStatusSeenAt = null;
     await order.save();
 
@@ -478,7 +487,12 @@ router.patch("/:id/keep", auth, async (req, res) => {
     if (order.user.toString() !== req.user.id)
       return res.status(403).json({ message: "No autorizado" });
 
+    if (order.status !== "shipped")
+      return res.status(400).json({ message: "Solo podés confirmar un pedido despachado." });
+
     order.status = "delivered";
+    order.deliveredAt = new Date();
+    order.deliveryReviewRequestedAt = null;
     order.sellerSeenAt = null;
     await order.save();
 
@@ -509,6 +523,8 @@ router.patch("/:id/return", auth, async (req, res) => {
     if (order.user.toString() !== req.user.id)
       return res.status(403).json({ message: "No autorizado" });
 
+    if (order.status !== "shipped")
+      return res.status(400).json({ message: "Solo podés devolver un pedido despachado." });
     order.status = "returned";
     await order.save();
 
@@ -522,6 +538,46 @@ router.patch("/:id/return", auth, async (req, res) => {
   } catch (err) {
     console.error("Error /return:", err);
     res.status(500).json({ message: "Error al procesar devolución" });
+  }
+});
+
+// Cualquiera de las partes puede señalar una entrega sin confirmar.
+// El pedido sigue abierto hasta que el comprador o administración verifique la entrega.
+router.patch("/:id/request-delivery-review", auth, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Orden no encontrada" });
+    const business = await Business.findOne({ owner: req.user.id }).select("_id owner").lean();
+    if (!mayRequestDeliveryReview(order, req.user.id, business?._id))
+      return res.status(403).json({ message: "No podés revisar este pedido" });
+    if (String(order.user) !== String(req.user.id) && !needsDeliveryReview(order))
+      return res.status(400).json({ message: "Podés solicitar revisión 72 horas después del despacho" });
+    if (!order.deliveryReviewRequestedAt) {
+      order.deliveryReviewRequestedAt = new Date();
+      order.deliveryReviewRequestedBy = req.user.id;
+      order.deliveryReviewReason = String(order.user) === String(req.user.id)
+        ? "El comprador aún no recibió el pedido"
+        : "El negocio solicita confirmar si el pedido fue recibido";
+      await order.save();
+      const isBuyer = String(order.user) === String(req.user.id);
+      const recipient = isBuyer
+        ? (await Business.findById(order.businessId).select('owner').lean())?.owner
+        : order.user;
+      if (recipient) {
+        try {
+          await require('./pushRoute').notifyUsers([recipient], {
+            title: 'Revisar entrega de un pedido',
+            body: isBuyer ? 'El comprador indicó que todavía no recibió el pedido.' : 'Confirmá si recibiste el pedido. Tu respuesta permite cerrar la venta.',
+            url: isBuyer ? '/ordenes' : '/panel', type: 'order', tag: `delivery-review-${order._id}`,
+          });
+        } catch (notificationError) {
+          console.error('No se pudo avisar la revisión de entrega:', notificationError);
+        }
+      }
+    }
+    res.json({ message: "Entrega señalada para revisión", deliveryReviewRequestedAt: order.deliveryReviewRequestedAt });
+  } catch (err) {
+    res.status(500).json({ message: "No se pudo solicitar la revisión" });
   }
 });
 
@@ -575,20 +631,6 @@ router.post("/:id/rate-seller", auth, async (req, res) => {
     order.sellerRating = { rating, comment, ratedAt: new Date() };
     await order.save();
 
-    let biz = null;
-    if (order.businessId) biz = await Business.findById(order.businessId);
-    if (!biz && order.businessName) biz = await Business.findOne({ name: order.businessName });
-
-    if (biz) {
-      const newTotal = (biz.totalRatings || 0) + 1;
-      const newSum   = (biz.ratingSum    || 0) + rating;
-      await Business.findByIdAndUpdate(biz._id, {
-        totalRatings: newTotal,
-        ratingSum:    newSum,
-        rating:       Math.round((newSum / newTotal) * 10) / 10,
-      });
-    }
-
     res.json({ message: "Calificación enviada al negocio", sellerRating: order.sellerRating });
   } catch (err) {
     console.error("Error /rate-seller:", err);
@@ -614,7 +656,7 @@ router.post("/:id/rate-buyer", auth, async (req, res) => {
 
     const isSeller =
       order.businessId?.toString() === business._id.toString() ||
-      order.businessName === business.name;
+      (!order.businessId && order.businessName === business.name);
     if (!isSeller) return res.status(403).json({ message: "No autorizado" });
 
     if (order.buyerRating?.rating)
@@ -623,17 +665,6 @@ router.post("/:id/rate-buyer", auth, async (req, res) => {
     await Order.findByIdAndUpdate(req.params.id, {
       buyerRating: { rating, comment, ratedAt: new Date() },
     });
-
-    const buyer = await User.findById(order.user);
-    if (buyer) {
-      const newTotal = (buyer.buyerTotalRatings || 0) + 1;
-      const newSum   = (buyer.buyerRatingSum    || 0) + rating;
-      await User.findByIdAndUpdate(order.user, {
-        buyerTotalRatings: newTotal,
-        buyerRatingSum:    newSum,
-        buyerRating:       Math.round((newSum / newTotal) * 10) / 10,
-      });
-    }
 
     res.json({ message: "Calificación enviada al comprador" });
   } catch (err) {
