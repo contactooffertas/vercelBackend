@@ -5,6 +5,7 @@ const cors      = require('cors');
 const path      = require('path');
 const connectDB = require('./config/db');
 const { blockForbiddenContent } = require('./utils/contentPolicy');
+const { hidePublicRatings } = require('./utils/publicRatings');
 
 // ── Rutas ─────────────────────────────────────────────────────────────────────
 const registerRecoveryRoutes = require('./routes/registerRecoveryRoute');
@@ -95,9 +96,9 @@ app.use('/p', shareRoutes);
 app.use('/api/auth',            registerRecoveryRoutes);
 app.use('/api/auth',            authRoutes);
 app.use('/api/user',            userRoutes);
-app.use('/api/business',        busiRoutes);
-app.use('/api/products',        productRoutes);
-app.use('/api/search',          searchRoutes);
+app.use('/api/business',        hidePublicRatings, busiRoutes);
+app.use('/api/products',        hidePublicRatings, productRoutes);
+app.use('/api/search',          hidePublicRatings, searchRoutes);
 app.use('/api/cart',            cartRoutes);
 app.use('/api/orders',          orderRoutes);
 app.use('/api/chat',            chatRoutes);

@@ -1,5 +1,7 @@
 const express = require("express");
 const router  = express.Router();
+const Order = require('../models/orderModel');
+const { canAdminCompleteDelivery } = require('../utils/orderLifecycle');
 const auth    = require("../middleware/authMiddleware");
 const { getAdminFunnel, clearAdminFunnel } = require("../authController/adminFunnelController");
 const {
@@ -61,6 +63,42 @@ const {
 // router.use aplica el middleware a TODAS las rutas de este router,
 // así que NO hay que repetir isAdmin / requireAdmin ruta por ruta.
 router.use(auth, requireAdmin);
+
+// Cola de entregas sin confirmar; una alerta no equivale a una entrega.
+router.get('/orders/delivery-review', async (_req, res) => {
+  try {
+    const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000);
+    const orders = await Order.find({ status: 'shipped', $or: [
+      { deliveryReviewRequestedAt: { $ne: null } },
+      { shippedAt: { $lte: cutoff } },
+      { shippedAt: null, updatedAt: { $lte: cutoff } },
+    ] }).select('user businessId businessName items shippedAt deliveryReviewRequestedAt deliveryReviewReason createdAt')
+      .populate('user', 'name email').populate('businessId', 'name phone')
+      .sort({ shippedAt: 1 }).limit(100).lean();
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ message: 'No se pudo consultar las entregas pendientes' });
+  }
+});
+
+router.patch('/orders/:id/complete-delivery', async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
+    if (!canAdminCompleteDelivery(order, req.body.verificationNote))
+      return res.status(400).json({ message: 'La entrega debe estar despachada y verificada. Registrá cómo se confirmó.' });
+    order.status = 'delivered';
+    order.deliveredAt = new Date();
+    order.adminCompletedAt = new Date();
+    order.adminCompletionNote = req.body.verificationNote.trim().slice(0, 500);
+    order.deliveryReviewRequestedAt = null;
+    order.sellerSeenAt = null;
+    await order.save();
+    res.json({ message: 'Entrega verificada y venta terminada' });
+  } catch (err) {
+    res.status(500).json({ message: 'No se pudo cerrar la venta' });
+  }
+});
 
 // ── DASHBOARD ────────────────────────────────────────────────────────────────
 router.get("/stats", getDashboardStats);

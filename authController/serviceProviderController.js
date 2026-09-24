@@ -90,7 +90,7 @@ exports.detail = async (req, res) => {
     const profile = await ServiceProvider.findOne({ _id: req.params.id, active: true, blocked: false }).populate('owner','name avatar').lean();
     if (!profile) return res.status(404).json({ message: 'Profesional no encontrado' });
     const allowed = [...new Set(profile.trades.flatMap(t => TRADE_BUSINESS_MAP[String(t).toLowerCase()] || ['Ferretería']))];
-    const recommendedBusinesses = await Business.find({ blocked: false, suspended: false, categories: { $in: allowed.map(x => new RegExp(x,'i')) } }).select('name logo address categories rating verified').limit(8).lean();
+    const recommendedBusinesses = await Business.find({ blocked: false, suspended: false, categories: { $in: allowed.map(x => new RegExp(x,'i')) } }).select('name logo address categories verified').limit(8).lean();
     const reviews = await ServiceReview.find({ provider: profile._id, status: 'published' }).populate('author','name avatar').sort({ createdAt: -1 }).limit(30).lean();
     res.json({ profile, recommendedBusinesses, compatibleCategories: allowed, reviews });
   } catch (err) { res.status(500).json({ message: 'No se pudo cargar el profesional' }); }

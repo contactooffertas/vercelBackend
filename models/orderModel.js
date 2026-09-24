@@ -20,6 +20,13 @@ const orderSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
   sellerSeenAt: { type: Date, default: null },
   buyerStatusSeenAt: { type: Date, default: null },
+  shippedAt: { type: Date, default: null },
+  deliveredAt: { type: Date, default: null },
+  adminCompletedAt: { type: Date, default: null },
+  adminCompletionNote: { type: String, default: "", maxlength: 500 },
+  deliveryReviewRequestedAt: { type: Date, default: null },
+  deliveryReviewRequestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  deliveryReviewReason: { type: String, default: "", maxlength: 250 },
   payment: {
     method: {
       type: String,
