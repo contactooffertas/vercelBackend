@@ -40,7 +40,7 @@ exports.getProfile = async (req, res) => {
       ...user.toObject(),
       stats: {
         purchases:  user.purchases || 0,
-        favorites:  user.favorites?.length || 0,
+        favorites:  (user.favorites?.length || 0) + (user.favoriteBusinesses?.length || 0),
         products:   productCount,
       },
     });
